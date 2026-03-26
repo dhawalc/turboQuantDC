@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TurboQuantDC War Room</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'SF Mono','Fira Code','Cascadia Code','JetBrains Mono',monospace;background:#080c12;color:#c5c8c6;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+
+/* ── Header ── */
+.header{display:flex;align-items:center;justify-content:space-between;padding:14px 28px;background:linear-gradient(180deg,#0d1117 0%,#0a0e14 100%);border-bottom:1px solid #1b2028}
+.header-left{display:flex;align-items:center;gap:14px}
+.logo{font-size:26px;filter:saturate(1.4)}
+.title{font-size:17px;font-weight:800;letter-spacing:4px;text-transform:uppercase;background:linear-gradient(135deg,#ff6b35,#ff9f1c);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.header-right{display:flex;align-items:center;gap:20px;font-size:12px;color:#545d6e}
+.live{display:flex;align-items:center;gap:7px}
+.live-dot{width:9px;height:9px;background:#3fb950;border-radius:50%;box-shadow:0 0 8px #3fb95066;animation:pulse 2s ease-in-out infinite}
+.live-text{color:#3fb950;font-weight:700;font-size:13px;letter-spacing:1px}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.85)}}
+
+/* ── Layout ── */
+.main{display:flex;flex:1;overflow:hidden}
+
+/* ── Sidebar ── */
+.sidebar{width:250px;min-width:250px;background:#0b0f15;border-right:1px solid #1b2028;display:flex;flex-direction:column}
+.sidebar-header{padding:18px 18px 14px;border-bottom:1px solid #1b2028}
+.sidebar-title{font-size:10px;font-weight:800;color:#ff6b35;letter-spacing:3px;text-transform:uppercase}
+.agent-list{flex:1;overflow-y:auto;padding:10px}
+.agent-card{padding:11px 14px;margin-bottom:6px;border-radius:10px;border:1px solid transparent;background:#12171f;transition:all .25s ease;cursor:default;position:relative;overflow:hidden}
+.agent-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;border-radius:0 2px 2px 0;background:transparent;transition:background .25s}
+.agent-card.active{border-color:#238636;background:#121d16}
+.agent-card.active::before{background:#3fb950}
+.agent-card.done{border-color:#1f3a5f;background:#111822}
+.agent-card.done::before{background:#58a6ff}
+.agent-card:hover{background:#161d27}
+.agent-top{display:flex;align-items:center;justify-content:space-between}
+.agent-name{font-size:13px;font-weight:700}
+.agent-emoji{font-size:18px}
+.agent-role{font-size:10px;color:#545d6e;margin-top:2px}
+.agent-status{display:flex;align-items:center;gap:5px;margin-top:5px;font-size:9px;letter-spacing:.3px}
+.sdot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
+.sdot.active{background:#3fb950;box-shadow:0 0 6px #3fb95055}
+.sdot.done{background:#58a6ff}
+.sdot.idle{background:#30363d}
+
+/* ── Messages ── */
+.messages-wrap{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.messages{flex:1;overflow-y:auto;padding:20px 28px;scroll-behavior:smooth}
+.msg{margin-bottom:16px;padding:16px 20px;background:#11161e;border-radius:10px;border:1px solid #1b2028;animation:fadeIn .3s ease;transition:border-color .2s}
+.msg:hover{border-color:#2a313b}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.msg.system{background:#0d1117;border-left:3px solid #ff6b35}
+.msg-head{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.msg-agent{font-weight:800;font-size:13px}
+.msg-badge{font-size:9px;padding:2px 9px;border-radius:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px}
+.b-research{background:#162040;color:#58a6ff}
+.b-finding{background:#2a1e08;color:#d29922}
+.b-consensus{background:#122a1a;color:#3fb950}
+.b-warning{background:#301414;color:#f85149}
+.b-update{background:#1b2028;color:#7c8495}
+.b-system{background:#1e1433;color:#bc8cff}
+.b-milestone{background:#1a2e1a;color:#56d364}
+.b-implementation{background:#1e2a3a;color:#79c0ff}
+.msg-time{margin-left:auto;font-size:10px;color:#3b424e}
+.msg-body{font-size:12.5px;line-height:1.7;color:#b1bac4;white-space:pre-wrap;word-wrap:break-word}
+.msg-body strong,.msg-body b{color:#e6edf3;font-weight:700}
+.msg-body code{background:#0a0e14;padding:1px 6px;border-radius:3px;font-size:11.5px;color:#79c0ff;border:1px solid #1b2028}
+.msg-body em{color:#bc8cff;font-style:italic}
+
+/* ── Phase bar ── */
+.phase-bar{padding:10px 28px;background:#0b0f15;border-top:1px solid #1b2028;display:flex;align-items:center;gap:16px;font-size:11px;color:#545d6e}
+.phase-label{color:#ff6b35;font-weight:700;letter-spacing:1px;text-transform:uppercase;font-size:10px}
+.phase-progress{flex:1;height:4px;background:#1b2028;border-radius:2px;overflow:hidden}
+.phase-fill{height:100%;background:linear-gradient(90deg,#ff6b35,#ff9f1c);border-radius:2px;transition:width .5s ease;width:0%}
+
+/* ── Empty state ── */
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:#3b424e;gap:12px}
+.empty-icon{font-size:52px;animation:float 3s ease-in-out infinite}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+.empty-text{font-size:13px;letter-spacing:.5px}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#1b2028;border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:#2a313b}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <span class="logo">&#9889;</span>
+    <span class="title">TurboQuantDC War Room</span>
+  </div>
+  <div class="header-right">
+    <div class="live"><div class="live-dot"></div><span class="live-text">LIVE</span></div>
+    <span id="msg-count">0 messages</span>
+    <span style="color:#2a313b">|</span>
+    <span id="agent-count">0 agents active</span>
+    <span style="color:#2a313b">|</span>
+    <span id="clock">--:--:-- --</span>
+  </div>
+</div>
+
+<div class="main">
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-title">&#9889; Research Team</div>
+    </div>
+    <div class="agent-list" id="agent-list"></div>
+  </div>
+  <div class="messages-wrap">
+    <div class="messages" id="messages">
+      <div class="empty" id="empty-state">
+        <div class="empty-icon">&#9889;</div>
+        <div class="empty-text">Waiting for agents to come online...</div>
+      </div>
+    </div>
+    <div class="phase-bar">
+      <span class="phase-label">Phase 1: Core Algorithm</span>
+      <div class="phase-progress"><div class="phase-fill" id="phase-fill"></div></div>
+      <span id="phase-pct">0%</span>
+    </div>
+  </div>
+</div>
+
+<script>
+const AGENTS = {
+  Archimedes: {role:'Math Researcher',      emoji:'\u{1F4D0}', color:'#58a6ff', desc:'Paper equations & bounds'},
+  Darwin:     {role:'Reference Analyzer',    emoji:'\u{1F52C}', color:'#3fb950', desc:'tonbistudio-ref analysis'},
+  Tesla:      {role:'CUDA Engineer',         emoji:'\u{26A1}',  color:'#d29922', desc:'Kernel strategy & memory'},
+  Turing:     {role:'Algorithm Architect',   emoji:'\u{1F9E0}', color:'#bc8cff', desc:'Core implementation'},
+  Maxwell:    {role:'Validation Engineer',   emoji:'\u{1F4CA}', color:'#f78166', desc:'Tests & paper bounds'},
+  System:     {role:'War Room',              emoji:'\u{1F525}', color:'#ff6b35', desc:''},
+};
+
+const BADGE = {
+  research:'b-research', finding:'b-finding', consensus:'b-consensus',
+  warning:'b-warning', update:'b-update', system:'b-system',
+  milestone:'b-milestone', implementation:'b-implementation'
+};
+
+let msgCount = 0, active = new Set(), seen = {}, userScrolled = false;
+
+function fmtTime(ts){
+  return new Date(ts*1000).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true});
+}
+
+function renderAgents(){
+  const el = document.getElementById('agent-list');
+  el.innerHTML = '';
+  for(const [name,a] of Object.entries(AGENTS)){
+    if(name==='System') continue;
+    const isActive = active.has(name);
+    const isDone = !isActive && seen[name];
+    const card = document.createElement('div');
+    card.className = 'agent-card' + (isActive?' active':'') + (isDone?' done':'');
+    card.innerHTML = `
+      <div class="agent-top">
+        <span class="agent-name" style="color:${a.color}">${name}</span>
+        <span class="agent-emoji">${a.emoji}</span>
+      </div>
+      <div class="agent-role">${a.role}</div>
+      <div class="agent-status">
+        <div class="sdot ${isActive?'active':(isDone?'done':'idle')}"></div>
+        <span style="color:${isActive?'#3fb950':(isDone?'#58a6ff':'#3b424e')}">
+          ${isActive?'Active':(isDone?'Complete':'Standby')}${seen[name]?' &mdash; '+fmtTime(seen[name]):''}
+        </span>
+      </div>`;
+    el.appendChild(card);
+  }
+}
+
+function fmt(text){
+  text = text.replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>');
+  text = text.replace(/`([^`\n]+)`/g,'<code>$1</code>');
+  text = text.replace(/^- /gm,'\u2022 ');
+  return text;
+}
+
+function addMsg(m){
+  const box = document.getElementById('messages');
+  const es = document.getElementById('empty-state');
+  if(es) es.remove();
+
+  const a = AGENTS[m.agent] || {role:'Agent',emoji:'\u{1F916}',color:'#7c8495'};
+  const bc = BADGE[m.type] || 'b-update';
+  const div = document.createElement('div');
+  div.className = 'msg' + (m.type==='system'?' system':'');
+  div.innerHTML = `
+    <div class="msg-head">
+      <span class="msg-agent" style="color:${a.color}">${a.emoji} ${m.agent}</span>
+      <span class="msg-badge ${bc}">${m.type||'update'}</span>
+      <span class="msg-time">${fmtTime(m.timestamp)}</span>
+    </div>
+    <div class="msg-body">${fmt(m.content)}</div>`;
+  box.appendChild(div);
+
+  if(!userScrolled) box.scrollTop = box.scrollHeight;
+
+  if(m.agent!=='System'){
+    active.add(m.agent);
+    seen[m.agent] = m.timestamp;
+    if(m.type==='consensus' || m.content.toLowerCase().includes('complete') || m.content.toLowerCase().includes('finished')){
+      active.delete(m.agent);
+    }
+  }
+}
+
+const msgBox = document.getElementById('messages');
+msgBox.addEventListener('scroll', ()=>{
+  const atBottom = msgBox.scrollHeight - msgBox.scrollTop - msgBox.clientHeight < 80;
+  userScrolled = !atBottom;
+});
+
+async function poll(){
+  try{
+    const r = await fetch('/api/messages?after='+msgCount);
+    const d = await r.json();
+    if(d.messages.length){
+      d.messages.forEach(addMsg);
+      msgCount = d.total;
+      document.getElementById('msg-count').textContent = msgCount+' messages';
+      document.getElementById('agent-count').textContent = active.size+' agents active';
+      renderAgents();
+      // estimate phase progress from message patterns
+      const pct = Math.min(95, Math.round(msgCount * 2.5));
+      document.getElementById('phase-fill').style.width = pct+'%';
+      document.getElementById('phase-pct').textContent = pct+'%';
+    }
+  }catch(e){}
+}
+
+function tick(){
+  document.getElementById('clock').textContent =
+    new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true});
+}
+
+renderAgents(); tick();
+setInterval(tick,1000);
+setInterval(poll,700);
+poll();
+</script>
+</body>
+</html>
