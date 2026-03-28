@@ -1,6 +1,6 @@
 # PLAN.md — TurboQuantDC
 
-## Current Phase: Phase 4 — Engine Integration & Ship
+## Current Phase: Phase 4 Complete — All Phases Done
 
 ### Phase 1: Core Algorithm ✅ (2026-03-26)
 - [x] Extract all equations, constants, bounds from paper (Archimedes → docs/MATH_SPEC.md)
@@ -53,12 +53,27 @@
 | **Qwen3.5-27B (d=256)** | 3 | 0.9932 | 98.4% | **100%** | 5.2x |
 | **Qwen3.5-27B (d=256)** | 4 | 0.9980 | **100%** | **100%** | 3.9x |
 
-### Phase 4: Engine Integration & Ship ⬜
-- [ ] Standalone text generation with TurboQuant KV cache
-- [ ] vLLM integration module
-- [ ] GitHub packaging (setup.py, requirements.txt, README)
-- [ ] End-to-end inference benchmarks
-- [ ] Publish to GitHub
+### Phase 4: Engine Integration & Ship ✅ (2026-03-28)
+- [x] Standalone text generation with TurboQuant KV cache (demo.py, 20KB)
+- [x] vLLM integration module (vllm_integration.py, 936 lines)
+- [x] GitHub packaging (setup.py, pyproject.toml, MANIFEST.in, requirements.txt, README)
+- [x] End-to-end inference benchmarks (showcase.py, 813 lines)
+- [x] 54 integration tests (test_integration.py), 233 total tests passing
+- [x] Showcase validated on RTX 4090: 0.9969 cosine sim, 94.4% top-5, 5.0x compression
+
+**Phase 4 Validation Results (Showcase on RTX 4090, Qwen2.5-3B-Instruct):**
+| Bits | Cosine Sim | Top-1 | Top-5 | Compression |
+|---|---|---|---|---|
+| 2 | 0.9913 | 77.8% | 93.1% | 7.3x |
+| **3** | **0.9969** | **73.6%** | **94.4%** | **5.0x** |
+| 4 | 0.9990 | 86.1% | 94.4% | 3.8x |
+
+### Phase 5: Beyond the Paper (from TheTom/turboquant_plus analysis) ⬜
+- [ ] Sparse V dequantization — skip V decode where softmax weight < 1e-6 (+22.8% decode speed)
+- [ ] Fractional bit rates — outlier channel strategy for 2.5-bit, 3.5-bit modes
+- [ ] Layer-adaptive compression — last N layers at full precision, rest compressed
+- [ ] Walsh-Hadamard rotation — O(d log d) vs current QR O(d²)
+- [ ] Temporal decay — older cache entries at lower precision
 
 ## Target Models
 
@@ -76,6 +91,11 @@
 - 2026-03-25: Must validate codebooks for d=256 (Qwen3.5 attention layers)
 - 2026-03-25: 2026 models trending toward hybrid architectures — TurboQuant value is at very long contexts
 - 2026-03-26: Phase 1 complete. Cosine sim ~0.96 on synthetic random vectors is expected; paper's 0.995 target applies to real LLM attention patterns (Phase 2 will validate)
+
+## Decisions Made (cont.)
+- 2026-03-28: Phase 4 complete. 233 tests passing, showcase validated on RTX 4090
+- 2026-03-28: Analyzed TheTom/turboquant_plus — Sparse V, fractional bits, layer-adaptive, WHT are top adoption candidates
+- 2026-03-28: Community finding: QJL may hurt at higher bit-widths (variance > bias benefit). Worth investigating.
 
 ## Blockers
 _(none)_

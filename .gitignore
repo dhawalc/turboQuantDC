@@ -5,6 +5,7 @@ __pycache__/
 *.so
 *.egg
 *.egg-info/
+.eggs/
 dist/
 build/
 eggs/
@@ -40,6 +41,10 @@ coverage.xml
 .hypothesis/
 nosetests.xml
 test-results/
+
+# Linting / formatting
+.ruff_cache/
+.mypy_cache/
 
 # IDEs
 .idea/
