@@ -31,6 +31,7 @@ from .sparse_v import SparseVAttention, sparse_attention
 from .outlier import OutlierTurboQuant
 from .layer_adaptive import FP16Cache, LayerAdaptiveKVCache, estimate_memory, recommended_schedule
 from .temporal_decay import TemporalDecayCache
+from .hf_integration import TurboQuantCache
 
 __all__ = [
     # Codebook
@@ -65,6 +66,8 @@ __all__ = [
     "estimate_memory",
     # Temporal Decay
     "TemporalDecayCache",
+    # HuggingFace Integration
+    "TurboQuantCache",
     # vLLM Integration
     "TurboQuantAttentionBackend",
     "TurboQuantCacheManager",

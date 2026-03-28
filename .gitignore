@@ -57,6 +57,7 @@ test-results/
 # Jupyter
 .ipynb_checkpoints/
 *.ipynb
+!notebooks/*.ipynb
 
 # PyTorch / model files
 *.pt
