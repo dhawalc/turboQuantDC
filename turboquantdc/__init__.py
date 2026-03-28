@@ -25,6 +25,13 @@ from .vllm_integration import (
     get_turboquant_config,
 )
 
+# Phase 5: Beyond the Paper
+from .rotation import apply_wht_rotation, fast_wht, generate_wht_rotation
+from .sparse_v import SparseVAttention, sparse_attention
+from .outlier import OutlierTurboQuant
+from .layer_adaptive import FP16Cache, LayerAdaptiveKVCache, estimate_memory, recommended_schedule
+from .temporal_decay import TemporalDecayCache
+
 __all__ = [
     # Codebook
     "beta_pdf",
@@ -34,6 +41,10 @@ __all__ = [
     # Rotation
     "generate_rotation_matrix",
     "generate_qjl_matrix",
+    # Fast Rotation (Walsh-Hadamard)
+    "fast_wht",
+    "generate_wht_rotation",
+    "apply_wht_rotation",
     # Stage 1
     "PolarQuant",
     # Stage 2
@@ -42,6 +53,18 @@ __all__ = [
     "TurboQuantEstimator",
     # KV Cache
     "TurboQuantKVCache",
+    # Sparse V Attention
+    "SparseVAttention",
+    "sparse_attention",
+    # Fractional Bit Rates
+    "OutlierTurboQuant",
+    # Layer-Adaptive
+    "LayerAdaptiveKVCache",
+    "FP16Cache",
+    "recommended_schedule",
+    "estimate_memory",
+    # Temporal Decay
+    "TemporalDecayCache",
     # vLLM Integration
     "TurboQuantAttentionBackend",
     "TurboQuantCacheManager",

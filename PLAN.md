@@ -68,12 +68,14 @@
 | **3** | **0.9969** | **73.6%** | **94.4%** | **5.0x** |
 | 4 | 0.9990 | 86.1% | 94.4% | 3.8x |
 
-### Phase 5: Beyond the Paper (from TheTom/turboquant_plus analysis) ⬜
-- [ ] Sparse V dequantization — skip V decode where softmax weight < 1e-6 (+22.8% decode speed)
-- [ ] Fractional bit rates — outlier channel strategy for 2.5-bit, 3.5-bit modes
-- [ ] Layer-adaptive compression — last N layers at full precision, rest compressed
-- [ ] Walsh-Hadamard rotation — O(d log d) vs current QR O(d²)
-- [ ] Temporal decay — older cache entries at lower precision
+### Phase 5: Beyond the Paper (from TheTom/turboquant_plus analysis) ✅ (2026-03-28)
+- [x] Sparse V dequantization (sparse_v.py, 20 tests) — attention-gated value skipping, 0.999+ cosine sim
+- [x] Fractional bit rates (outlier.py, 15 tests) — 2.5-bit @ 5.56x, 3.5-bit @ 4.13x compression
+- [x] Layer-adaptive compression (layer_adaptive.py, 32 tests) — tail_preserve/gradient/custom strategies
+- [x] Walsh-Hadamard Transform (rotation.py, 12 tests) — O(d log d) butterfly, 256x memory vs QR
+- [x] Temporal decay (temporal_decay.py, 19 tests) — 3-tier hot/warm/cold progressive compression
+
+**Phase 5 Test Results:** 98 new tests, 331 total passing in 13.18s
 
 ## Target Models
 
