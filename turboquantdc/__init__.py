@@ -32,6 +32,7 @@ from .outlier import OutlierTurboQuant
 from .layer_adaptive import FP16Cache, LayerAdaptiveKVCache, estimate_memory, recommended_schedule
 from .temporal_decay import TemporalDecayCache
 from .hf_integration import TurboQuantCache
+from .streaming import StreamingInferenceEngine
 
 __all__ = [
     # Codebook
@@ -72,6 +73,8 @@ __all__ = [
     "TurboQuantAttentionBackend",
     "TurboQuantCacheManager",
     "get_turboquant_config",
+    # Streaming Inference
+    "StreamingInferenceEngine",
 ]
 
 __version__ = "0.1.0"

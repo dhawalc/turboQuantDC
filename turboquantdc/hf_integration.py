@@ -99,7 +99,11 @@ class TurboQuantLayer:
         self._device = key_states.device
 
         d = self._head_dim
-        device = "cpu"  # codebook computation on CPU, tensors moved later
+        # Codebook computation (scipy) runs on CPU internally, but the
+        # resulting rotation matrices and centroids must live on the same
+        # device as the data. PolarQuant and TurboQuantEstimator accept a
+        # device argument and move their buffers accordingly.
+        device = str(self._device) if self._device is not None else "cpu"
 
         self._key_est = TurboQuantEstimator(
             d=d, bits=self.bits, seed=self.seed, device=device,
