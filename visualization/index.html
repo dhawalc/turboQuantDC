@@ -822,6 +822,182 @@ input[type="range"]::-moz-range-thumb {
 }
 
 /* ============================================================
+   SECTION: IMPOSSIBLE INFERENCE
+   ============================================================ */
+.impossible { background: linear-gradient(180deg, var(--bg) 0%, #08080e 100%); }
+
+.impossible-hero-card {
+  background: var(--bg-card);
+  border: 1px solid #222233;
+  border-radius: 16px;
+  padding: 40px;
+  text-align: center;
+  margin-bottom: 40px;
+  position: relative;
+  overflow: hidden;
+}
+
+.impossible-hero-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--cyan), var(--green), var(--cyan));
+}
+
+.impossible-headline {
+  font-family: var(--mono);
+  font-size: clamp(1.2rem, 3vw, 1.8rem);
+  font-weight: 800;
+  color: var(--green);
+  margin-bottom: 8px;
+}
+
+.impossible-detail {
+  font-size: 1rem;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+}
+
+.impossible-detail strong {
+  color: var(--cyan);
+  font-family: var(--mono);
+}
+
+.impossible-table-wrap {
+  overflow-x: auto;
+  margin-top: 32px;
+}
+
+.impossible-table {
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+  border-collapse: collapse;
+  font-family: var(--mono);
+  font-size: 0.9rem;
+}
+
+.impossible-table th {
+  padding: 14px 20px;
+  text-align: left;
+  color: var(--cyan);
+  border-bottom: 2px solid #333344;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.impossible-table td {
+  padding: 12px 20px;
+  border-bottom: 1px solid #1a1a2e;
+  white-space: nowrap;
+}
+
+.impossible-table tr:hover td {
+  background: #1a1a2e;
+}
+
+.impossible-table .val-green {
+  color: var(--green);
+  font-weight: 700;
+}
+
+.impossible-table .val-red {
+  color: var(--red);
+}
+
+.impossible-table .val-pass {
+  color: var(--green);
+  font-weight: 700;
+}
+
+.needle-badge {
+  display: inline-block;
+  background: var(--green);
+  color: #000;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+/* ============================================================
+   SECTION: WHAT WE DISCOVERED
+   ============================================================ */
+.discoveries { background: linear-gradient(180deg, #08080e 0%, var(--bg) 100%); }
+
+.discovery-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-top: 40px;
+}
+
+@media (max-width: 900px) {
+  .discovery-grid { grid-template-columns: 1fr; }
+}
+
+.discovery-card {
+  background: var(--bg-card);
+  border: 1px solid #222233;
+  border-radius: 16px;
+  padding: 28px;
+  opacity: 0;
+  transform: translateY(30px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+
+.discovery-card.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.discovery-card.wide {
+  grid-column: 1 / -1;
+}
+
+.discovery-card.positive {
+  border-left: 3px solid var(--green);
+}
+
+.discovery-card.negative {
+  border-left: 3px solid var(--red);
+}
+
+.discovery-card.neutral {
+  border-left: 3px solid var(--yellow);
+}
+
+.discovery-verdict {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 8px;
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.discovery-verdict.finding { background: var(--red); color: #fff; }
+.discovery-verdict.proven { background: var(--green); color: #000; }
+.discovery-verdict.limit { background: var(--yellow); color: #000; }
+
+.discovery-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.discovery-desc {
+  font-size: 0.9rem;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+/* ============================================================
    SECTION 7: FOOTER
    ============================================================ */
 .footer-section {
@@ -943,6 +1119,10 @@ input[type="range"]::-moz-range-thumb {
         <div class="counter-value" id="counter-tests">0</div>
         <div class="counter-label">Tests Passing</div>
       </div>
+      <div class="counter-item">
+        <div class="counter-value" id="counter-modules">0</div>
+        <div class="counter-label">Modules</div>
+      </div>
     </div>
     <div class="scroll-hint">Scroll to see the magic <span class="scroll-arrow">&darr;</span></div>
   </div>
@@ -1037,7 +1217,8 @@ input[type="range"]::-moz-range-thumb {
     <p class="section-subheading reveal">Interactive quality explorer. Pick a bit-width and see the numbers.</p>
     <div class="quality-controls reveal">
       <button class="bit-btn" data-bits="2">2-bit</button>
-      <button class="bit-btn active" data-bits="3">3-bit</button>
+      <button class="bit-btn active" data-bits="3">3-bit MSE</button>
+      <button class="bit-btn" data-bits="3tq">3-bit TQ</button>
       <button class="bit-btn" data-bits="4">4-bit</button>
     </div>
     <div class="quality-grid reveal">
@@ -1054,7 +1235,7 @@ input[type="range"]::-moz-range-thumb {
           <path class="gauge-arc-bg" d="M 30 140 A 100 100 0 0 1 230 140" />
           <path class="gauge-arc-fill" id="gauge-fill" d="M 30 140 A 100 100 0 0 1 230 140" />
         </svg>
-        <div class="gauge-value-text" id="gauge-value">0.9969</div>
+        <div class="gauge-value-text" id="gauge-value">0.9788</div>
         <div class="gauge-label">Cosine Similarity</div>
       </div>
       <!-- Metrics -->
@@ -1070,6 +1251,10 @@ input[type="range"]::-moz-range-thumb {
         <div class="metric-item">
           <label>Compression Ratio <span id="metric-comp-val">5.0x</span></label>
           <div class="metric-bar-bg"><div class="metric-bar-fill green" id="metric-comp" style="width:68.5%"></div></div>
+        </div>
+        <div class="metric-item">
+          <label>Generation Quality <span id="metric-gen-val" style="font-size:0.8rem"></span></label>
+          <div style="font-family:var(--mono); font-size:0.85rem; color:var(--text-dim); margin-top:4px;" id="metric-gen-mode"></div>
         </div>
       </div>
     </div>
@@ -1099,6 +1284,60 @@ input[type="range"]::-moz-range-thumb {
 </section>
 
 <!-- ============================================================
+     SECTION: IMPOSSIBLE INFERENCE
+     ============================================================ -->
+<section class="impossible" id="impossible">
+  <div class="section-inner">
+    <h2 class="section-heading reveal">Impossible Inference</h2>
+    <p class="section-subheading reveal">Running models that shouldn't fit. Finding needles that shouldn't be found.</p>
+
+    <div class="impossible-hero-card reveal">
+      <div class="impossible-headline">14B model on 24 GB GPU</div>
+      <div class="impossible-detail">Qwen2.5-14B (29.5 GB) running at <strong>8.3 GB peak VRAM</strong></div>
+      <div class="impossible-detail">Streaming engine: one layer at a time from CPU. Any model size fits.</div>
+      <div class="impossible-detail" style="margin-top:16px;">Needle-in-haystack: <strong>NEPTUNE-4422</strong> found in 4K context</div>
+    </div>
+
+    <div class="impossible-hero-card reveal" style="text-align:left;">
+      <div class="impossible-headline" style="text-align:center; margin-bottom:20px;">1M Tokens on a Single RTX 4090</div>
+      <div class="impossible-detail" style="text-align:center; margin-bottom:24px;">TQ-2 cache at <strong>4.92 GB</strong> for 1M tokens. FP16 would need 36 GB. 100% needle retrieval at all depths.</div>
+      <div class="impossible-table-wrap">
+        <table class="impossible-table">
+          <thead>
+            <tr>
+              <th>Context</th>
+              <th>KV Cache (TQ-2)</th>
+              <th>FP16 Would Need</th>
+              <th>Needle Found</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>128K</td>
+              <td class="val-green">0.62 GB</td>
+              <td class="val-red">4.50 GB</td>
+              <td><span class="needle-badge">100%</span></td>
+            </tr>
+            <tr>
+              <td>512K</td>
+              <td class="val-green">2.46 GB</td>
+              <td class="val-red">18.00 GB</td>
+              <td><span class="needle-badge">100%</span></td>
+            </tr>
+            <tr>
+              <td>1M</td>
+              <td class="val-green">4.92 GB</td>
+              <td class="val-red">36.00 GB</td>
+              <td><span class="needle-badge">100%</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
      SECTION 6: BEYOND THE PAPER
      ============================================================ -->
 <section class="beyond" id="beyond">
@@ -1110,18 +1349,33 @@ input[type="range"]::-moz-range-thumb {
 </section>
 
 <!-- ============================================================
+     SECTION: WHAT WE DISCOVERED
+     ============================================================ -->
+<section class="discoveries" id="discoveries">
+  <div class="section-inner">
+    <h2 class="section-heading reveal">What We Discovered</h2>
+    <p class="section-subheading reveal">Honest findings from 511 tests and 25,000 lines of implementation. Not all results were positive.</p>
+    <div class="discovery-grid" id="discovery-grid"></div>
+  </div>
+</section>
+
+<!-- ============================================================
      SECTION 7: FOOTER
      ============================================================ -->
 <section class="footer-section" id="footer">
   <div class="section-inner">
     <p class="footer-tagline reveal">Built by an AI agent swarm in a single session.</p>
     <div class="footer-stats reveal">
-      <div class="footer-stat"><div class="footer-stat-val">10</div><div class="footer-stat-label">Agents</div></div>
-      <div class="footer-stat"><div class="footer-stat-val">331</div><div class="footer-stat-label">Tests</div></div>
-      <div class="footer-stat"><div class="footer-stat-val">10,000+</div><div class="footer-stat-label">Lines of Code</div></div>
-      <div class="footer-stat"><div class="footer-stat-val">5</div><div class="footer-stat-label">Phases</div></div>
+      <div class="footer-stat"><div class="footer-stat-val">30+</div><div class="footer-stat-label">AI Agents</div></div>
+      <div class="footer-stat"><div class="footer-stat-val">511</div><div class="footer-stat-label">Tests</div></div>
+      <div class="footer-stat"><div class="footer-stat-val">25,000+</div><div class="footer-stat-label">Lines of Code</div></div>
+      <div class="footer-stat"><div class="footer-stat-val">7</div><div class="footer-stat-label">Phases</div></div>
     </div>
-    <a class="footer-link reveal" href="https://github.com/turboQuantDC" target="_blank" rel="noopener">View on GitHub</a>
+    <div class="footer-links reveal" style="display:flex; justify-content:center; gap:16px; flex-wrap:wrap; margin-top:20px;">
+      <a class="footer-link" href="https://github.com/turboQuantDC" target="_blank" rel="noopener">GitHub</a>
+      <a class="footer-link" href="https://pypi.org/project/turboquantdc/" target="_blank" rel="noopener">pip install turboquantdc</a>
+      <a class="footer-link" href="https://colab.research.google.com/" target="_blank" rel="noopener">Colab Notebook</a>
+    </div>
   </div>
 </section>
 
@@ -1140,9 +1394,10 @@ const BENCHMARK_DATA = {
     { name: "Llama-3-70B", params: "70B", d: 128, layers: 80, kv_heads: 8 },
   ],
   quality: {
-    2: { cosSim: 0.9913, top1: 0.778, top5: 0.931, compression: 7.3 },
-    3: { cosSim: 0.9969, top1: 0.736, top5: 0.944, compression: 5.0 },
-    4: { cosSim: 0.9990, top1: 0.861, top5: 0.944, compression: 3.8 },
+    2: { cosSim: 0.9913, top1: 0.778, top5: 0.931, compression: 7.3, mode: "MSE-only", generation: "Broken" },
+    3: { cosSim: 0.9788, top1: 0.736, top5: 0.944, compression: 5.0, mode: "MSE-only", generation: "Artifacts" },
+    "3tq": { cosSim: 0.9230, top1: 0.736, top5: 0.944, compression: 5.0, mode: "MSE+QJL", generation: "Garbled (QJL hurts)" },
+    4: { cosSim: 0.9956, top1: 0.861, top5: 0.944, compression: 3.8, mode: "MSE-only", generation: "Production quality" },
   },
   perHead: { worst: 0.9902, p5: 0.9916, median: 0.9973, p95: 0.9995, best: 0.9998 },
   throughput: { quantize: 34_000_000, innerProduct: 68_000_000 },
@@ -1160,11 +1415,11 @@ const BENCHMARK_DATA = {
 };
 
 const BEYOND_CARDS = [
-  { icon: "\u26A1", title: "Sparse V", desc: "Skip 90% of value decode. +22.8% speed." },
-  { icon: "\uD83C\uDFAF", title: "Fractional Bits", desc: "2.5-bit and 3.5-bit precision modes." },
-  { icon: "\uD83C\uDFD7\uFE0F", title: "Layer-Adaptive", desc: "Critical layers at full precision." },
-  { icon: "\uD83C\uDF00", title: "Walsh-Hadamard", desc: "O(d log d) fast rotation. 256x memory savings." },
-  { icon: "\u23F3", title: "Temporal Decay", desc: "Older tokens at lower precision. 30%+ savings." },
+  { icon: "\u26A1", title: "Sparse V", desc: "Skip 90% of value dequant, +22.8% decode speed, 0.999+ cosine sim." },
+  { icon: "\uD83C\uDFAF", title: "Fractional Bits", desc: "2.5-bit at 5.56x compression, 3.5-bit at 4.13x compression." },
+  { icon: "\uD83C\uDFD7\uFE0F", title: "Layer-Adaptive", desc: "Critical layers at FP16, rest compressed. 3 strategies." },
+  { icon: "\uD83C\uDF00", title: "Walsh-Hadamard", desc: "O(d log d) rotation, 256x less memory than QR decomposition." },
+  { icon: "\u23F3", title: "Temporal Decay", desc: "3-tier hot/warm/cold cache. 30% additional savings." },
 ];
 
 /* ============================================================
@@ -1243,7 +1498,7 @@ const revealObserver = new IntersectionObserver(
   { threshold: 0.15 }
 );
 
-document.querySelectorAll(".reveal, .pipeline-stage, .memory-card, .hex-card").forEach((el) => {
+document.querySelectorAll(".reveal, .pipeline-stage, .memory-card, .hex-card, .discovery-card").forEach((el) => {
   revealObserver.observe(el);
 });
 
@@ -1268,7 +1523,8 @@ const counterObserver = new IntersectionObserver(
       if (e.isIntersecting) {
         animateCounter(document.getElementById("counter-compression"), 5.0, "x", 1800, 1);
         animateCounter(document.getElementById("counter-quality"), 99.7, "%", 2000, 1);
-        animateCounter(document.getElementById("counter-tests"), 331, "", 2200, 0);
+        animateCounter(document.getElementById("counter-tests"), 511, "", 2200, 0);
+        animateCounter(document.getElementById("counter-modules"), 15, "", 2400, 0);
         counterObserver.disconnect();
       }
     });
@@ -1732,8 +1988,8 @@ counterObserver.observe(document.querySelector(".counters"));
   const arcLength = Math.PI * 100; // half circumference
 
   function setGauge(cosSim) {
-    // Map cosSim from [0.98, 1.0] to [0, 1]
-    const t = Math.max(0, Math.min(1, (cosSim - 0.98) / 0.02));
+    // Map cosSim from [0.90, 1.0] to [0, 1] to handle QJL's 0.923
+    const t = Math.max(0, Math.min(1, (cosSim - 0.90) / 0.10));
     const offset = arcLength * (1 - t);
     gaugeFill.style.strokeDasharray = arcLength;
     gaugeFill.style.strokeDashoffset = offset;
@@ -1756,6 +2012,9 @@ counterObserver.observe(document.querySelector(".counters"));
     gaugeAnimId = requestAnimationFrame(tick);
   }
 
+  const metricGenVal = document.getElementById("metric-gen-val");
+  const metricGenMode = document.getElementById("metric-gen-mode");
+
   function updateQuality(bits) {
     const q = BENCHMARK_DATA.quality[bits];
     setGauge(q.cosSim);
@@ -1771,13 +2030,25 @@ counterObserver.observe(document.querySelector(".counters"));
     const compPct = (q.compression / 8) * 100;
     metricComp.style.width = compPct + "%";
     metricCompVal.textContent = q.compression.toFixed(1) + "x";
+
+    // Generation quality
+    if (metricGenVal && metricGenMode) {
+      metricGenVal.textContent = q.generation;
+      const genColors = {
+        "Broken": "var(--red)", "Artifacts": "var(--orange)",
+        "Garbled (QJL hurts)": "var(--red)", "Production quality": "var(--green)"
+      };
+      metricGenVal.style.color = genColors[q.generation] || "var(--text-dim)";
+      metricGenMode.textContent = "Mode: " + q.mode;
+    }
   }
 
   btns.forEach(btn => {
     btn.addEventListener("click", () => {
       btns.forEach(b => b.classList.remove("active"));
       btn.classList.add("active");
-      updateQuality(parseInt(btn.dataset.bits));
+      const bitsKey = btn.dataset.bits;
+      updateQuality(isNaN(bitsKey) ? bitsKey : parseInt(bitsKey));
       // Burst effect on compression
       createBurst(metricCompVal);
     });
@@ -1787,7 +2058,7 @@ counterObserver.observe(document.querySelector(".counters"));
   updateQuality(3);
   // Initial gauge setup
   gaugeFill.style.strokeDasharray = arcLength;
-  setGauge(0.9969);
+  setGauge(0.9788);
 
   // Per-head heatmap
   const grid = document.getElementById("perhead-grid");
@@ -1916,6 +2187,59 @@ function createBurst(targetEl) {
       <span class="hex-icon">${c.icon}</span>
       <div class="hex-title">${c.title}</div>
       <div class="hex-desc">${c.desc}</div>
+    `;
+    grid.appendChild(card);
+    revealObserver.observe(card);
+  });
+})();
+
+/* ============================================================
+   SECTION: WHAT WE DISCOVERED
+   ============================================================ */
+(function initDiscoveries() {
+  const DISCOVERIES = [
+    {
+      verdict: "finding", verdictText: "FINDING",
+      type: "negative",
+      title: "QJL hurts generation at 3-bit",
+      desc: "Mean error 27% HIGHER with QJL than MSE-only. The variance from random projections exceeds the bias it removes. Community suspected this \u2014 we proved it."
+    },
+    {
+      verdict: "finding", verdictText: "NEGATIVE RESULT",
+      type: "negative",
+      title: "Cross-layer delta coding doesn't work",
+      desc: "Adjacent transformer layers have zero correlation (r=0.001). They're independent random matrices. Honest negative result."
+    },
+    {
+      verdict: "limit", verdictText: "THEORETICAL LIMIT",
+      type: "neutral",
+      title: "Shannon's 1.5 bits/param floor is real",
+      desc: "TurboQuant is within 1.5x of the information-theoretic wall. The algorithm is nearly optimal."
+    },
+    {
+      verdict: "proven", verdictText: "PROVEN",
+      type: "positive",
+      title: "4-bit MSE-only is production-ready",
+      desc: "Coherent generation at 3.8x compression. \"The capital of Australia is Canberra\" \u2014 correct output."
+    },
+    {
+      verdict: "finding", verdictText: "PHASE TRANSITION",
+      type: "negative",
+      wide: true,
+      title: "90% compression cliff",
+      desc: "KV cache compression beyond ~10x causes catastrophic hallucination regardless of method. There is a hard wall."
+    },
+  ];
+
+  const grid = document.getElementById("discovery-grid");
+  DISCOVERIES.forEach((d, i) => {
+    const card = document.createElement("div");
+    card.className = "discovery-card " + d.type + (d.wide ? " wide" : "");
+    card.style.transitionDelay = (i * 0.1) + "s";
+    card.innerHTML = `
+      <span class="discovery-verdict ${d.verdict}">${d.verdictText}</span>
+      <div class="discovery-title">${d.title}</div>
+      <div class="discovery-desc">${d.desc}</div>
     `;
     grid.appendChild(card);
     revealObserver.observe(card);
