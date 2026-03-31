@@ -56,6 +56,16 @@ from .channel_adaptive import (
     analyze_channel_sensitivity,
     get_channel_priority,
 )
+from .entropy_coding import (
+    ANSEncoder,
+    CompressedPolarQuant,
+    EntropyEncoder,
+    ZlibEncoder,
+    compression_opportunity,
+    entropy_analysis_sweep,
+    measure_index_entropy,
+    theoretical_index_entropy,
+)
 
 __all__ = [
     # Codebook
@@ -122,6 +132,15 @@ __all__ = [
     "ChannelAdaptivePolarQuant",
     "analyze_channel_sensitivity",
     "get_channel_priority",
+    # Entropy Coding
+    "ANSEncoder",
+    "ZlibEncoder",
+    "EntropyEncoder",
+    "CompressedPolarQuant",
+    "measure_index_entropy",
+    "theoretical_index_entropy",
+    "compression_opportunity",
+    "entropy_analysis_sweep",
 ]
 
 __version__ = "0.2.0"
