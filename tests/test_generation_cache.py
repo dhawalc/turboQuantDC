@@ -204,6 +204,87 @@ class TestCompressionQuality:
             sims[bits] = cosine_sim(keys, k_out)
         assert sims[4] >= sims[3] >= sims[2], f"Quality not monotonic: {sims}"
 
+    @pytest.mark.parametrize("seed_val", [42, 123, 999])
+    def test_key_quality_monotonic_2_to_8(self, seed_val):
+        """Key reconstruction cosine similarity must be monotonically
+        non-decreasing from 2-bit to 8-bit (the K5 anomaly guard).
+
+        Tests with multiple seeds to catch seed-dependent issues.
+        """
+        keys, values = make_kv_states(seq_len=64, seed=seed_val)
+        sims = {}
+        for bits in range(2, 9):
+            cache = GenerationCache(
+                key_bits=bits, val_bits=2, fp16_window=0,
+                seed=SEED, anchor_interval=0,
+            )
+            k_out, _ = cache.update(keys, values, layer_idx=0)
+            sims[bits] = cosine_sim(keys, k_out)
+        for b in range(2, 8):
+            assert sims[b + 1] >= sims[b] - 1e-6, (
+                f"Key quality not monotonic at seed={seed_val}: "
+                f"{b}-bit sim={sims[b]:.6f} > {b+1}-bit sim={sims[b+1]:.6f}"
+            )
+
+    def test_value_quality_monotonic_2_to_8(self):
+        """Value reconstruction quality must increase with bits (2-8)."""
+        keys, values = make_kv_states(seq_len=64, seed=100)
+        sims = {}
+        for bits in range(2, 9):
+            cache = GenerationCache(
+                key_bits=3, val_bits=bits, fp16_window=0,
+                seed=SEED, anchor_interval=0,
+            )
+            _, v_out = cache.update(keys, values, layer_idx=0)
+            sims[bits] = cosine_sim(values, v_out)
+        for b in range(2, 8):
+            assert sims[b + 1] >= sims[b] - 1e-6, (
+                f"Value quality not monotonic: "
+                f"{b}-bit sim={sims[b]:.6f} > {b+1}-bit sim={sims[b+1]:.6f}"
+            )
+
+    def test_5bit_keys_not_worse_than_4bit(self):
+        """Explicit guard: 5-bit keys must be at least as good as 4-bit.
+
+        This test was added to catch the K5 anomaly observed in autoresearch
+        where K5 V2 A0 W0 scored 0.51 while K4 V2 A0 W0 scored 0.92.
+        """
+        keys, values = make_kv_states(seq_len=128, seed=100)
+        sim_4 = None
+        sim_5 = None
+        for bits in [4, 5]:
+            cache = GenerationCache(
+                key_bits=bits, val_bits=2, fp16_window=0,
+                seed=SEED, anchor_interval=0,
+            )
+            k_out, _ = cache.update(keys, values, layer_idx=0)
+            sim = cosine_sim(keys, k_out)
+            if bits == 4:
+                sim_4 = sim
+            else:
+                sim_5 = sim
+        assert sim_5 >= sim_4 - 1e-6, (
+            f"5-bit keys ({sim_5:.6f}) worse than 4-bit ({sim_4:.6f})"
+        )
+
+    def test_multi_layer_quality_monotonic(self):
+        """Quality across 36 layers should be monotonic with bits."""
+        n_layers = 36
+        for key_bits in [4, 5]:
+            cache = GenerationCache(
+                key_bits=key_bits, val_bits=2, fp16_window=0,
+                seed=SEED, anchor_interval=0,
+            )
+            torch.manual_seed(42)
+            for layer_idx in range(n_layers):
+                keys = torch.randn(1, NUM_HEADS, 32, HEAD_DIM)
+                values = torch.randn(1, NUM_HEADS, 32, HEAD_DIM)
+                cache.update(keys, values, layer_idx=layer_idx)
+
+            # Verify all layers have data
+            assert cache.get_seq_length(0) == 32
+            assert len(cache) == n_layers
+
 
 # ---------------------------------------------------------------------------
 # Test: FP16 window

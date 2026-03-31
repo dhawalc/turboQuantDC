@@ -406,3 +406,175 @@ class TestDimensionVariation:
         cb = LloydMaxCodebook(d=64, bits=3)
         assert cb.centroids.shape == (8,)
         assert cb.boundaries.shape == (7,)
+
+
+# ---------------------------------------------------------------------------
+# Tests: extended bit-width range (2-8 bits)
+# ---------------------------------------------------------------------------
+class TestExtendedBitWidths:
+    """Verify codebook correctness across the full 2-8 bit range.
+
+    The original tests covered 1-4 bits. These tests extend coverage to
+    5-8 bits to guard against numerical issues with larger codebooks
+    (32, 64, 128, 256 centroids).
+    """
+
+    @pytest.mark.parametrize("bits_val", [2, 3, 4, 5, 6, 7, 8])
+    def test_structure_at_higher_bits(self, bits_val):
+        """Codebook at 5-8 bits should have correct structure."""
+        cb = LloydMaxCodebook(d=DEFAULT_DIM, bits=bits_val)
+        n_levels = 2 ** bits_val
+
+        # Correct sizes
+        assert cb.centroids.shape == (n_levels,)
+        assert cb.boundaries.shape == (n_levels - 1,)
+
+        # Sorted ascending
+        c = cb.centroids
+        b = cb.boundaries
+        assert torch.all(c[1:] > c[:-1]), (
+            f"Centroids not sorted at {bits_val}-bit"
+        )
+        if b.numel() > 1:
+            assert torch.all(b[1:] > b[:-1]), (
+                f"Boundaries not sorted at {bits_val}-bit"
+            )
+
+        # No NaN or Inf
+        assert not torch.any(torch.isnan(c)), f"NaN in centroids at {bits_val}-bit"
+        assert not torch.any(torch.isinf(c)), f"Inf in centroids at {bits_val}-bit"
+        assert not torch.any(torch.isnan(b)), f"NaN in boundaries at {bits_val}-bit"
+        assert not torch.any(torch.isinf(b)), f"Inf in boundaries at {bits_val}-bit"
+
+    @pytest.mark.parametrize("bits_val", [2, 3, 4, 5, 6, 7, 8])
+    def test_symmetry_at_higher_bits(self, bits_val):
+        """Centroids and boundaries should be symmetric at all bit widths."""
+        cb = LloydMaxCodebook(d=DEFAULT_DIM, bits=bits_val)
+        c = cb.centroids
+        b = cb.boundaries
+        n = 2 ** bits_val
+        n_bounds = n - 1
+
+        # Centroid symmetry: c[i] = -c[n-1-i]
+        for i in range(n // 2):
+            assert abs(c[i].item() + c[n - 1 - i].item()) < 1e-6, (
+                f"Centroid pair ({i}, {n-1-i}) not symmetric at {bits_val}-bit: "
+                f"{c[i].item()} vs {-c[n-1-i].item()}"
+            )
+
+        # Middle boundary is zero
+        mid_idx = n_bounds // 2
+        assert abs(b[mid_idx].item()) < 1e-6, (
+            f"Middle boundary not zero at {bits_val}-bit: {b[mid_idx].item()}"
+        )
+
+    @pytest.mark.parametrize("bits_val", [5, 6, 7, 8])
+    def test_boundaries_are_midpoints_higher_bits(self, bits_val):
+        """Each boundary b_i should equal (c_i + c_{i+1}) / 2 at 5-8 bits."""
+        cb = LloydMaxCodebook(d=DEFAULT_DIM, bits=bits_val)
+        c = cb.centroids
+        b = cb.boundaries
+        for i in range(len(b)):
+            expected = (c[i].item() + c[i + 1].item()) / 2.0
+            actual = b[i].item()
+            assert abs(actual - expected) < 1e-6, (
+                f"Boundary {i} at {bits_val}-bit: "
+                f"expected {expected} (midpoint), got {actual}"
+            )
+
+    def test_distortion_monotonically_decreases_2_to_8(self):
+        """Quantization MSE must decrease strictly with more bits (2-8)."""
+        distortions = []
+        for b in range(2, 9):
+            cb = LloydMaxCodebook(d=DEFAULT_DIM, bits=b)
+            torch.manual_seed(42)
+            samples = torch.randn(50000) * SIGMA
+            indices = cb.quantize(samples)
+            reconstructed = cb.dequantize(indices)
+            mse = ((samples - reconstructed) ** 2).mean().item()
+            distortions.append((b, mse))
+
+        for i in range(len(distortions) - 1):
+            b_lo, mse_lo = distortions[i]
+            b_hi, mse_hi = distortions[i + 1]
+            assert mse_lo > mse_hi, (
+                f"MSE not decreasing: {b_lo}-bit MSE={mse_lo:.8f} vs "
+                f"{b_hi}-bit MSE={mse_hi:.8f}"
+            )
+
+    @pytest.mark.parametrize("bits_val", [5, 6, 7, 8])
+    def test_mse_below_theoretical_bound_higher_bits(self, bits_val):
+        """MSE at 5-8 bits should be within reasonable range of theoretical bound.
+
+        At high bit widths the MSE is extremely small and finite-sample
+        variance dominates, so we use a looser factor than the 1-4 bit tests.
+        The key property (distortion decreasing with bits) is tested separately.
+        """
+        cb = LloydMaxCodebook(d=DEFAULT_DIM, bits=bits_val)
+        torch.manual_seed(42)
+        samples = torch.randn(50000) * SIGMA
+        indices = cb.quantize(samples)
+        reconstructed = cb.dequantize(indices)
+        mse_per_coord = ((samples - reconstructed) ** 2).mean().item()
+
+        d_mse = mse_per_coord * DEFAULT_DIM
+        upper_bound = MSE_BOUND_FACTOR / (4 ** bits_val)
+
+        # At high bit widths, allow 2x slack due to finite-sample effects
+        assert d_mse < upper_bound * 2.0, (
+            f"D_mse={d_mse} exceeds 2x theoretical bound {upper_bound} "
+            f"at {bits_val}-bit"
+        )
+
+    @pytest.mark.parametrize("bits_val", [5, 6, 7, 8])
+    def test_quantize_returns_valid_indices_higher_bits(self, bits_val):
+        """Quantize at 5-8 bits should return indices in [0, 2^bits - 1]."""
+        cb = LloydMaxCodebook(d=DEFAULT_DIM, bits=bits_val)
+        torch.manual_seed(42)
+        samples = torch.randn(10000) * SIGMA
+        indices = cb.quantize(samples)
+        assert indices.min() >= 0, f"Negative index at {bits_val}-bit"
+        assert indices.max() < 2 ** bits_val, (
+            f"Index {indices.max()} >= {2 ** bits_val} at {bits_val}-bit"
+        )
+
+    @pytest.mark.parametrize("bits_val", [5, 6, 7, 8])
+    def test_bucketize_matches_bruteforce_higher_bits(self, bits_val):
+        """torch.bucketize (used in generation_cache) must match brute-force
+        nearest-centroid (used in codebook.quantize) at 5-8 bits."""
+        cb = LloydMaxCodebook(d=DEFAULT_DIM, bits=bits_val)
+        torch.manual_seed(42)
+        samples = torch.randn(50000) * SIGMA
+
+        # Method 1: brute-force nearest centroid
+        idx_bf = cb.quantize(samples)
+
+        # Method 2: torch.bucketize (what generation_cache uses)
+        idx_bucket = torch.bucketize(samples, cb.boundaries)
+        idx_bucket = idx_bucket.clamp(0, cb.n_levels - 1)
+
+        # Should agree on virtually all samples (boundary ties are OK)
+        mismatch_rate = (idx_bf != idx_bucket).float().mean().item()
+        assert mismatch_rate < 0.001, (
+            f"bucketize vs brute-force mismatch rate {mismatch_rate:.4f} "
+            f"at {bits_val}-bit (expected < 0.001)"
+        )
+
+    @pytest.mark.parametrize("bits_val", [5, 6, 7, 8])
+    def test_centroid_spacing_monotone_higher_bits(self, bits_val):
+        """Adjacent centroid spacing should be monotonically increasing
+        from center to edges (property of Gaussian distribution)."""
+        cb = LloydMaxCodebook(d=DEFAULT_DIM, bits=bits_val)
+        c = cb.centroids
+        n = 2 ** bits_val
+        mid = n // 2
+
+        # Check right half: spacing from center should increase
+        right_spacings = [
+            (c[i + 1] - c[i]).item() for i in range(mid, n - 1)
+        ]
+        for i in range(len(right_spacings) - 1):
+            assert right_spacings[i] <= right_spacings[i + 1] + 1e-6, (
+                f"Right spacing not monotone at {bits_val}-bit, "
+                f"pos {mid+i}: {right_spacings[i]:.8f} > {right_spacings[i+1]:.8f}"
+            )
