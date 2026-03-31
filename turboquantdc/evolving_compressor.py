@@ -43,8 +43,8 @@ class EvolvingLayer:
         d = self._head_dim
         device = str(self._device)
         self._rotation = generate_rotation_matrix(d, seed=self.seed, device=device)
-        # Keys get more bits (6-bit = 64 centroids for quality)
-        self._key_codebook = LloydMaxCodebook(d=d, bits=max(self.bits, 6)).to(device)
+        # Keys get 8-bit (256 centroids — matched FP16 in BitSweep)
+        self._key_codebook = LloydMaxCodebook(d=d, bits=8).to(device)
         self._val_codebook = LloydMaxCodebook(d=d, bits=2).to(device)
 
     def _quantize_vectors(self, vectors, codebook):
@@ -84,6 +84,7 @@ class EvolvingLayer:
     def update(self, key_states, value_states):
         if self._rotation is None:
             self._lazy_init(key_states, value_states)
+        # Store compressed version
         k_idx, k_norms, k_rsigns, k_rscale = self._quantize_vectors(key_states, self._key_codebook)
         self._key_indices.append(k_idx)
         self._key_norms.append(k_norms)
@@ -94,6 +95,11 @@ class EvolvingLayer:
         v_idx, v_norms, v_rsigns, v_rscale = self._quantize_vectors(value_states, self._val_codebook)
         self._val_indices.append(v_idx)
         self._val_norms.append(v_norms)
+        # Also store raw FP16 for residual window
+        self._raw_keys = getattr(self, '_raw_keys', [])
+        self._raw_vals = getattr(self, '_raw_vals', [])
+        self._raw_keys.append(key_states.detach())
+        self._raw_vals.append(value_states.detach())
         self._seq_len += key_states.shape[2]
         return self._get_all()
 
@@ -109,6 +115,17 @@ class EvolvingLayer:
         k_rscales = torch.cat(self._key_rscales, dim=2) if hasattr(self, '_key_rscales') and self._key_rscales else None
         keys = self._dequantize_vectors(all_k_idx, all_k_norms, self._key_codebook, k_rsigns, k_rscales)
         values = self._dequantize_vectors(all_v_idx, all_v_norms, self._val_codebook)
+
+        # Residual window: replace last 128 tokens with raw FP16
+        FP16_WINDOW = 128
+        if hasattr(self, '_raw_keys') and self._raw_keys:
+            raw_keys = torch.cat(self._raw_keys, dim=2)
+            raw_vals = torch.cat(self._raw_vals, dim=2)
+            win = min(FP16_WINDOW, raw_keys.shape[2])
+            if win > 0 and keys.shape[2] >= win:
+                keys[:, :, -win:, :] = raw_keys[:, :, -win:, :].to(keys.dtype)
+                values[:, :, -win:, :] = raw_vals[:, :, -win:, :].to(values.dtype)
+
         return keys.to(self._dtype), values.to(self._dtype)
 
     @property
