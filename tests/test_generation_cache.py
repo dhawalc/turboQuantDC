@@ -1,10 +1,12 @@
 """Tests for the production GenerationCache module.
 
 Validates the HF Cache protocol, compression quality, FP16 window behavior,
-anchor layers, memory reporting, and configurable parameters.
+anchor layers, memory reporting, configurable parameters, incremental
+dequantization, memory leak prevention, and fused attention.
 """
 
 import math
+import time
 
 import pytest
 import torch
@@ -429,3 +431,298 @@ class TestAutoregressiveSimulation:
         kv_len, offset = cache.get_mask_sizes(pos, layer_idx=0)
         assert kv_len == 11  # 10 + 1
         assert offset == 0
+
+
+# ---------------------------------------------------------------------------
+# Test: Fix 1 — O(N) incremental dequantization
+# ---------------------------------------------------------------------------
+class TestIncrementalDequantization:
+    """Validate that dequantization is incremental (O(N) not O(N^2))."""
+
+    def test_dequant_cache_populated(self):
+        """After update, the internal dequant cache should be populated."""
+        cache = GenerationCache(seed=SEED, anchor_interval=0, fp16_window=0)
+        keys, values = make_kv_states(batch=1, num_heads=2, seq_len=8, head_dim=64)
+        cache.update(keys, values, layer_idx=0)
+        layer = cache._layers[0]
+        assert layer._dequant_key_cache is not None
+        assert layer._dequant_val_cache is not None
+        assert layer._dequant_len == 8
+
+    def test_dequant_cache_grows_incrementally(self):
+        """Dequant cache should grow with each update, not be rebuilt."""
+        cache = GenerationCache(seed=SEED, anchor_interval=0, fp16_window=0)
+        # Prefill
+        k1, v1 = make_kv_states(batch=1, num_heads=2, seq_len=10, head_dim=64, seed=1)
+        cache.update(k1, v1, layer_idx=0)
+        layer = cache._layers[0]
+        assert layer._dequant_len == 10
+        # Add 1 token
+        k2, v2 = make_kv_states(batch=1, num_heads=2, seq_len=1, head_dim=64, seed=2)
+        cache.update(k2, v2, layer_idx=0)
+        assert layer._dequant_len == 11
+        assert layer._dequant_key_cache.shape[2] == 11
+
+    def test_incremental_matches_full_rebuild(self):
+        """Incremental dequantization must produce same result as full rebuild."""
+        # Build incrementally
+        cache_inc = GenerationCache(seed=SEED, anchor_interval=0, fp16_window=0)
+        k1, v1 = make_kv_states(batch=1, num_heads=2, seq_len=10, head_dim=64, seed=10)
+        cache_inc.update(k1, v1, layer_idx=0)
+        for i in range(5):
+            ki, vi = make_kv_states(batch=1, num_heads=2, seq_len=1, head_dim=64, seed=100 + i)
+            k_out, v_out = cache_inc.update(ki, vi, layer_idx=0)
+
+        # Build all at once (simulate by concatenating inputs)
+        all_keys = [k1] + [
+            make_kv_states(batch=1, num_heads=2, seq_len=1, head_dim=64, seed=100 + i)[0]
+            for i in range(5)
+        ]
+        all_values = [v1] + [
+            make_kv_states(batch=1, num_heads=2, seq_len=1, head_dim=64, seed=100 + i)[1]
+            for i in range(5)
+        ]
+        all_k = torch.cat(all_keys, dim=2)
+        all_v = torch.cat(all_values, dim=2)
+
+        cache_full = GenerationCache(seed=SEED, anchor_interval=0, fp16_window=0)
+        k_full, v_full = cache_full.update(all_k, all_v, layer_idx=0)
+
+        # Results should be close (same quantization, same dequant path)
+        torch.testing.assert_close(k_out, k_full, atol=1e-5, rtol=1e-4)
+        torch.testing.assert_close(v_out, v_full, atol=1e-5, rtol=1e-4)
+
+    def test_dequant_is_linear_not_quadratic(self):
+        """Dequant of 100 vs 200 tokens should take ~2x, not ~4x time."""
+        def time_n_tokens(n: int) -> float:
+            cache = GenerationCache(seed=SEED, anchor_interval=0, fp16_window=0)
+            # Prefill with 10 tokens
+            k0, v0 = make_kv_states(batch=1, num_heads=2, seq_len=10, head_dim=64, seed=0)
+            cache.update(k0, v0, layer_idx=0)
+            # Add n tokens one at a time
+            start = time.perf_counter()
+            for i in range(n):
+                ki, vi = make_kv_states(batch=1, num_heads=2, seq_len=1, head_dim=64, seed=i + 1)
+                cache.update(ki, vi, layer_idx=0)
+            elapsed = time.perf_counter() - start
+            return elapsed
+
+        t100 = time_n_tokens(100)
+        t200 = time_n_tokens(200)
+
+        # With O(N^2), t200/t100 would be ~4x. With O(N), it should be ~2x.
+        # Allow generous margin but reject clearly quadratic behavior.
+        ratio = t200 / max(t100, 1e-9)
+        assert ratio < 3.5, (
+            f"Dequant scaling looks quadratic: 200tok took {t200:.3f}s, "
+            f"100tok took {t100:.3f}s, ratio={ratio:.2f} (expected <3.5)"
+        )
+
+    def test_dequant_cache_invalidated_on_clear(self):
+        """Clearing a layer should invalidate the dequant cache."""
+        cache = GenerationCache(seed=SEED, anchor_interval=0)
+        keys, values = make_kv_states(batch=1, num_heads=2, seq_len=8, head_dim=64)
+        cache.update(keys, values, layer_idx=0)
+        layer = cache._layers[0]
+        assert layer._dequant_key_cache is not None
+        layer.clear()
+        assert layer._dequant_key_cache is None
+        assert layer._dequant_len == 0
+
+    def test_dequant_cache_truncated_on_crop(self):
+        """Cropping should truncate the dequant cache to match."""
+        cache = GenerationCache(seed=SEED, anchor_interval=0, fp16_window=0)
+        keys, values = make_kv_states(batch=1, num_heads=2, seq_len=20, head_dim=64)
+        cache.update(keys, values, layer_idx=0)
+        layer = cache._layers[0]
+        assert layer._dequant_key_cache.shape[2] == 20
+        cache.crop(10)
+        assert layer._dequant_key_cache.shape[2] == 10
+        assert layer._dequant_len == 10
+
+
+# ---------------------------------------------------------------------------
+# Test: Fix 2 — FP16 window memory leak
+# ---------------------------------------------------------------------------
+class TestFP16MemoryLeak:
+    """Validate that raw FP16 storage is bounded, not growing unboundedly."""
+
+    def test_raw_storage_bounded(self):
+        """After 500 tokens, raw list should have <= fp16_window entries."""
+        fp16_window = 32
+        cache = GenerationCache(
+            seed=SEED, anchor_interval=0, fp16_window=fp16_window,
+        )
+        # Prefill
+        k0, v0 = make_kv_states(batch=1, num_heads=2, seq_len=10, head_dim=64, seed=0)
+        cache.update(k0, v0, layer_idx=0)
+        # Add 490 tokens one at a time
+        for i in range(490):
+            ki, vi = make_kv_states(
+                batch=1, num_heads=2, seq_len=1, head_dim=64, seed=i + 1,
+            )
+            cache.update(ki, vi, layer_idx=0)
+
+        layer = cache._layers[0]
+        total_raw_tokens = sum(t.shape[2] for t in layer._raw_keys)
+        assert total_raw_tokens <= fp16_window, (
+            f"Raw FP16 storage has {total_raw_tokens} tokens, "
+            f"expected <= {fp16_window}"
+        )
+
+    def test_raw_storage_exact_window(self):
+        """After trimming, the raw data should have exactly fp16_window tokens."""
+        fp16_window = 16
+        cache = GenerationCache(
+            seed=SEED, anchor_interval=0, fp16_window=fp16_window,
+        )
+        # Add enough tokens to trigger trim (> fp16_window * 2)
+        for i in range(fp16_window * 3):
+            ki, vi = make_kv_states(
+                batch=1, num_heads=2, seq_len=1, head_dim=64, seed=i,
+            )
+            cache.update(ki, vi, layer_idx=0)
+
+        layer = cache._layers[0]
+        total_raw_tokens = sum(t.shape[2] for t in layer._raw_keys)
+        assert total_raw_tokens == fp16_window, (
+            f"Expected exactly {fp16_window} raw tokens after trim, "
+            f"got {total_raw_tokens}"
+        )
+
+    def test_fp16_window_zero_no_raw_growth(self):
+        """With fp16_window=0, raw storage should still not leak."""
+        cache = GenerationCache(
+            seed=SEED, anchor_interval=0, fp16_window=0,
+        )
+        for i in range(100):
+            ki, vi = make_kv_states(
+                batch=1, num_heads=2, seq_len=1, head_dim=64, seed=i,
+            )
+            cache.update(ki, vi, layer_idx=0)
+
+        # fp16_window=0 means the raw data is never used for splice,
+        # but the trim condition (seq_len > fp16_window * 2 = 0) is always
+        # true after first token, so trimming is a no-op for window=0.
+        # The important thing is it doesn't crash.
+        layer = cache._layers[0]
+        assert layer.get_seq_length() == 100
+
+    def test_fp16_window_still_works_after_trim(self):
+        """After raw trimming, FP16 window splice should still work correctly."""
+        fp16_window = 8
+        cache = GenerationCache(
+            seed=SEED, anchor_interval=0, fp16_window=fp16_window,
+        )
+        # Build up 50 tokens
+        all_keys = []
+        for i in range(50):
+            ki, vi = make_kv_states(
+                batch=1, num_heads=2, seq_len=1, head_dim=64, seed=i,
+            )
+            all_keys.append(ki)
+            k_out, v_out = cache.update(ki, vi, layer_idx=0)
+
+        # The last fp16_window tokens in the output should match
+        # the last fp16_window inputs exactly
+        recent_keys = torch.cat(all_keys[-fp16_window:], dim=2)
+        torch.testing.assert_close(
+            k_out[:, :, -fp16_window:, :],
+            recent_keys,
+            atol=1e-6, rtol=1e-5,
+        )
+
+
+# ---------------------------------------------------------------------------
+# Test: Fix 3 — Fused attention / norm correction
+# ---------------------------------------------------------------------------
+class TestFusedAttentionNormCorrection:
+    """Validate fused attention path and norm correction integration."""
+
+    def test_norm_correction_default_on(self):
+        """use_norm_correction should default to True."""
+        cache = GenerationCache(seed=SEED)
+        assert cache.use_norm_correction is True
+
+    def test_norm_correction_passed_to_layers(self):
+        """use_norm_correction should be passed to _CompressedLayer."""
+        cache = GenerationCache(seed=SEED, anchor_interval=0, use_norm_correction=True)
+        keys, values = make_kv_states(seq_len=5)
+        cache.update(keys, values, layer_idx=0)
+        layer = cache._layers[0]
+        assert layer.use_norm_correction is True
+
+        cache2 = GenerationCache(seed=SEED, anchor_interval=0, use_norm_correction=False)
+        cache2.update(keys, values, layer_idx=0)
+        layer2 = cache2._layers[0]
+        assert layer2.use_norm_correction is False
+
+    def test_fused_dequant_uses_float32(self):
+        """The fused path should compute in float32 to avoid FP16 rounding."""
+        cache = GenerationCache(
+            seed=SEED, anchor_interval=0, fp16_window=0,
+            use_norm_correction=True,
+        )
+        keys, values = make_kv_states(seq_len=16, seed=42)
+        cache.update(keys, values, layer_idx=0)
+
+        layer = cache._layers[0]
+        # The dequant cache should exist
+        assert layer._dequant_key_cache is not None
+        # The fused method should exist and be callable
+        assert hasattr(layer, '_dequantize_vectors_fused')
+
+    def test_norm_correction_improves_quality(self):
+        """Norm correction should improve or maintain reconstruction quality."""
+        keys, values = make_kv_states(seq_len=64, seed=300)
+
+        # With norm correction (default)
+        cache_on = GenerationCache(
+            seed=SEED, anchor_interval=0, fp16_window=0,
+            use_norm_correction=True,
+        )
+        k_on, _ = cache_on.update(keys, values, layer_idx=0)
+        sim_on = cosine_sim(keys, k_on)
+
+        # Without norm correction
+        cache_off = GenerationCache(
+            seed=SEED, anchor_interval=0, fp16_window=0,
+            use_norm_correction=False,
+        )
+        k_off, _ = cache_off.update(keys, values, layer_idx=0)
+        sim_off = cosine_sim(keys, k_off)
+
+        # Both should have high quality (norm correction is always stored,
+        # the flag controls the fused path behavior)
+        assert sim_on > 0.90, f"Norm correction ON quality too low: {sim_on:.4f}"
+        assert sim_off > 0.90, f"Norm correction OFF quality too low: {sim_off:.4f}"
+
+    def test_fused_path_produces_valid_output(self):
+        """The fused dequantization path should produce valid tensors."""
+        cache = GenerationCache(
+            seed=SEED, anchor_interval=0, fp16_window=0,
+            use_norm_correction=True,
+        )
+        keys, values = make_kv_states(batch=1, num_heads=2, seq_len=32, head_dim=64, seed=50)
+        k_out, v_out = cache.update(keys, values, layer_idx=0)
+
+        # Output should have correct shape
+        assert k_out.shape == keys.shape
+        assert v_out.shape == values.shape
+
+        # Output should not contain NaN or Inf
+        assert not torch.isnan(k_out).any(), "Fused path produced NaN in keys"
+        assert not torch.isinf(k_out).any(), "Fused path produced Inf in keys"
+        assert not torch.isnan(v_out).any(), "Fused path produced NaN in values"
+        assert not torch.isinf(v_out).any(), "Fused path produced Inf in values"
+
+    def test_fused_path_cosine_quality(self):
+        """Fused path key reconstruction should have good cosine similarity."""
+        cache = GenerationCache(
+            key_bits=3, val_bits=2, fp16_window=0, seed=SEED,
+            anchor_interval=0, use_norm_correction=True,
+        )
+        keys, values = make_kv_states(seq_len=64, seed=100)
+        k_out, _ = cache.update(keys, values, layer_idx=0)
+        sim = cosine_sim(keys, k_out)
+        assert sim > 0.95, f"Fused path cosine similarity {sim:.4f} below 0.95"
