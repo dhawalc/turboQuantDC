@@ -49,6 +49,7 @@ from .asymmetric import (
     create_asymmetric_cache,
     analyze_kv_norms,
 )
+from .generation_cache import GenerationCache
 
 __all__ = [
     # Codebook
@@ -108,6 +109,8 @@ __all__ = [
     "ASYMMETRIC_PRESETS",
     "create_asymmetric_cache",
     "analyze_kv_norms",
+    # Production Generation Cache
+    "GenerationCache",
 ]
 
 __version__ = "0.1.0"

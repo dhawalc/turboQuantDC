@@ -95,11 +95,18 @@ class EvolvingLayer:
         v_idx, v_norms, v_rsigns, v_rscale = self._quantize_vectors(value_states, self._val_codebook)
         self._val_indices.append(v_idx)
         self._val_norms.append(v_norms)
-        # Also store raw FP16 for residual window
+        # FP16 residual window — only keep last 128 tokens, discard older raw data
+        FP16_WINDOW = 128
         self._raw_keys = getattr(self, '_raw_keys', [])
         self._raw_vals = getattr(self, '_raw_vals', [])
         self._raw_keys.append(key_states.detach())
         self._raw_vals.append(value_states.detach())
+        # Trim: concatenate and keep only last FP16_WINDOW tokens
+        if self._seq_len > FP16_WINDOW * 2:
+            all_rk = torch.cat(self._raw_keys, dim=2)
+            all_rv = torch.cat(self._raw_vals, dim=2)
+            self._raw_keys = [all_rk[:, :, -FP16_WINDOW:, :]]
+            self._raw_vals = [all_rv[:, :, -FP16_WINDOW:, :]]
         self._seq_len += key_states.shape[2]
         return self._get_all()
 
