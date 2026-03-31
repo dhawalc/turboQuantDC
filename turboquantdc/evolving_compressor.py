@@ -43,8 +43,8 @@ class EvolvingLayer:
         d = self._head_dim
         device = str(self._device)
         self._rotation = generate_rotation_matrix(d, seed=self.seed, device=device)
-        # Keys get 8-bit (256 centroids — matched FP16 in BitSweep)
-        self._key_codebook = LloydMaxCodebook(d=d, bits=8).to(device)
+        # Try 4-bit keys (16 centroids) — aggressive compression
+        self._key_codebook = LloydMaxCodebook(d=d, bits=4).to(device)
         self._val_codebook = LloydMaxCodebook(d=d, bits=2).to(device)
 
     def _quantize_vectors(self, vectors, codebook):
