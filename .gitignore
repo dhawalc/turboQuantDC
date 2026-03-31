@@ -84,3 +84,12 @@ outputs/
 .cache/
 docs/PATH_TO_100M.md
 docs/PATENT_DRAFTS.md
+autoresearch_results_buggy.jsonl
+autoresearch_results_v1.jsonl
+autoresearch_real_results_buggy.jsonl
+autoresearch_results.jsonl
+autoresearch_real_results.jsonl
+autoresearch.log
+autoresearch_real.log
+*.backup
+nohup.out
