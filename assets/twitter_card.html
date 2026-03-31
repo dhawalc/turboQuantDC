@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { width:1200px; height:675px; background:linear-gradient(135deg,#0a0a14,#0d1117); font-family:system-ui,-apple-system,sans-serif; color:#e0e0e0; display:flex; align-items:center; justify-content:center; }
+.card { width:1100px; padding:60px; }
+.tag { color:#00f0ff; font-size:14px; letter-spacing:3px; text-transform:uppercase; margin-bottom:16px; }
+h1 { font-size:72px; font-weight:800; line-height:1.1; margin-bottom:24px; }
+h1 span { color:#00ff88; }
+.sub { font-size:24px; color:#999; margin-bottom:40px; line-height:1.5; }
+.metrics { display:flex; gap:40px; }
+.metric { background:#111118; border:1px solid #1a1a2e; border-radius:12px; padding:24px 32px; flex:1; text-align:center; }
+.metric .val { font-size:48px; font-weight:800; font-family:'SF Mono',monospace; }
+.metric .label { color:#888; font-size:14px; margin-top:8px; }
+.m1 .val { color:#00ff88; }
+.m2 .val { color:#00f0ff; }
+.m3 .val { color:#ff6b35; }
+.m4 .val { color:#00ff88; }
+.footer { margin-top:40px; display:flex; justify-content:space-between; align-items:center; }
+.footer .left { color:#666; font-size:16px; }
+.footer .right { color:#00f0ff; font-size:18px; font-family:'SF Mono',monospace; }
+</style></head><body>
+<div class="card">
+<div class="tag">TurboQuantDC</div>
+<h1><span>5.1x</span> KV Cache Compression.<br>FP16 Generation Quality.</h1>
+<div class="sub">3-bit keys + ResidualQuant + FP16 window. No quality loss.<br>Novel algorithm discovered through autoresearch in 6 rounds.</div>
+<div class="metrics">
+<div class="metric m1"><div class="val">5.1x</div><div class="label">Compression</div></div>
+<div class="metric m2"><div class="val">+8.1%</div><div class="label">PPL vs FP16</div></div>
+<div class="metric m3"><div class="val">4/4</div><div class="label">Factual Accuracy</div></div>
+<div class="metric m4"><div class="val">0</div><div class="label">FP16 Anchors Needed</div></div>
+</div>
+<div class="footer">
+<div class="left">pip install turboquantdc</div>
+<div class="right">github.com/dhawalc/turboQuantDC</div>
+</div>
+</div>
+</body></html>
