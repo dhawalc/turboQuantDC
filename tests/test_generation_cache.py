@@ -420,10 +420,11 @@ class TestConfiguration:
 
     def test_default_config(self):
         cache = GenerationCache()
-        assert cache.key_bits == 3
-        assert cache.val_bits == 2
-        assert cache.fp16_window == 128
-        assert cache.anchor_interval == 6
+        assert cache.key_bits == 4
+        assert cache.val_bits == 3
+        assert cache.fp16_window == 64
+        assert cache.anchor_interval == 12
+        assert cache.use_residual_quant is True
 
     def test_custom_config(self):
         cache = GenerationCache(key_bits=4, val_bits=3, fp16_window=64, anchor_interval=4)
@@ -461,9 +462,9 @@ class TestMemoryReporting:
         for i in range(12):
             cache.update(keys, values, layer_idx=i)
         summary = cache.config_summary()
-        assert "3b keys" in summary
-        assert "2b values" in summary
-        assert "FP16 window=128" in summary
+        assert "4b keys" in summary
+        assert "3b values" in summary
+        assert "FP16 window=64" in summary
 
 
 # ---------------------------------------------------------------------------
@@ -902,3 +903,78 @@ class TestResidualQuantToggle:
 
         assert "residual signs" in cache_rq.config_summary()
         assert "no residual signs" in cache_no_rq.config_summary()
+
+# ---------------------------------------------------------------------------
+# Test: quality presets
+# ---------------------------------------------------------------------------
+class TestPresets:
+    """Validate quality presets from 246-config autoresearch sweep."""
+
+    def test_presets_dict_exists(self):
+        """GenerationCache.PRESETS should be a dict with known keys."""
+        assert isinstance(GenerationCache.PRESETS, dict)
+        assert set(GenerationCache.PRESETS.keys()) == {"lossless", "balanced", "aggressive"}
+
+    def test_lossless_preset_config(self):
+        """Lossless preset should use K8/V3 anchor=12."""
+        cache = GenerationCache.from_preset("lossless")
+        assert cache.key_bits == 8
+        assert cache.val_bits == 3
+        assert cache.anchor_interval == 12
+        assert cache.fp16_window == 0
+        assert cache.use_residual_quant is False
+
+    def test_balanced_preset_config(self):
+        """Balanced preset should use K3/V3 anchor=36 win=64 RQ=True."""
+        cache = GenerationCache.from_preset("balanced")
+        assert cache.key_bits == 3
+        assert cache.val_bits == 3
+        assert cache.anchor_interval == 36
+        assert cache.fp16_window == 64
+        assert cache.use_residual_quant is True
+
+    def test_aggressive_preset_config(self):
+        """Aggressive preset should use K3/V2 anchor=6 win=512 RQ=True."""
+        cache = GenerationCache.from_preset("aggressive")
+        assert cache.key_bits == 3
+        assert cache.val_bits == 2
+        assert cache.anchor_interval == 6
+        assert cache.fp16_window == 512
+        assert cache.use_residual_quant is True
+
+    def test_from_preset_with_overrides(self):
+        """Overrides should take precedence over preset values."""
+        cache = GenerationCache.from_preset("balanced", fp16_window=128, seed=99)
+        assert cache.key_bits == 3  # from preset
+        assert cache.val_bits == 3  # from preset
+        assert cache.fp16_window == 128  # overridden
+        assert cache.anchor_interval == 36  # from preset
+
+    def test_from_preset_unknown_raises(self):
+        """Unknown preset name should raise KeyError."""
+        with pytest.raises(KeyError, match="Unknown preset"):
+            GenerationCache.from_preset("nonexistent")
+
+    def test_each_preset_creates_valid_cache(self):
+        """Each preset should create a cache that works for basic operations."""
+        keys, values = make_kv_states(seq_len=16, seed=42)
+        for name in GenerationCache.PRESETS:
+            cache = GenerationCache.from_preset(name, seed=SEED)
+            k_out, v_out = cache.update(keys, values, layer_idx=0)
+            assert k_out.shape == keys.shape, f"Preset '{name}' returned wrong key shape"
+            assert v_out.shape == values.shape, f"Preset '{name}' returned wrong value shape"
+            assert cache.get_seq_length(0) == 16, f"Preset '{name}' seq length wrong"
+
+    def test_preset_does_not_mutate_class_dict(self):
+        """from_preset should not mutate the PRESETS class variable."""
+        original = GenerationCache.PRESETS["balanced"].copy()
+        GenerationCache.from_preset("balanced", fp16_window=999)
+        assert GenerationCache.PRESETS["balanced"] == original
+
+    def test_presets_importable_from_package(self):
+        """GENERATION_PRESETS should be importable from the package."""
+        from turboquantdc import GENERATION_PRESETS
+        assert isinstance(GENERATION_PRESETS, dict)
+        assert "lossless" in GENERATION_PRESETS
+        assert "balanced" in GENERATION_PRESETS
+        assert "aggressive" in GENERATION_PRESETS
