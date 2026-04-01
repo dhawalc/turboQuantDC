@@ -29,12 +29,108 @@ correction replacing QJL random projection for generation workloads.
 from __future__ import annotations
 
 import math
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import torch
 
 from .codebook import LloydMaxCodebook
 from .rotation import generate_rotation_matrix
+
+
+# ---------------------------------------------------------------------------
+# Layer-adaptive anchor strategy helpers
+# ---------------------------------------------------------------------------
+
+# Valid anchor strategies
+ANCHOR_STRATEGIES = ("fixed", "boundary", "gradient")
+
+
+def compute_layer_key_bits(
+    layer_idx: int,
+    num_layers: int,
+    base_bits: int = 3,
+) -> int:
+    """Compute key bit-width for a layer based on its distance from boundaries.
+
+    Layers near the first/last positions of the transformer stack are more
+    sensitive to quantization error (boundary layers handle embedding proximity
+    and output head proximity respectively). This function assigns higher
+    bit-widths to boundary layers and lower bit-widths to middle layers.
+
+    The distance metric is normalized to [0, 0.5] where 0 means at the
+    boundary and 0.5 means exact middle of the stack.
+
+    Args:
+        layer_idx: Index of the layer (0-based).
+        num_layers: Total number of transformer layers.
+        base_bits: Default bit-width for middle layers (default: 3).
+
+    Returns:
+        Bit-width for keys at this layer. Values in {base_bits, base_bits+1, 8}.
+        Returns 8 (FP16-equivalent) for layers within 10% of boundaries.
+        Returns base_bits+1 for layers within 25% of boundaries.
+        Returns base_bits for all other (middle) layers.
+    """
+    if num_layers <= 1:
+        return 8  # Single-layer model: always FP16-equivalent
+
+    # Distance from nearest boundary, normalized to [0, 0.5]
+    dist = min(layer_idx, num_layers - 1 - layer_idx) / (num_layers / 2)
+
+    if dist < 0.1:  # Within 10% of boundary
+        return 8  # FP16-equivalent for keys
+    elif dist < 0.25:  # Within 25% of boundary
+        return max(base_bits + 1, 4)  # One extra bit, at least 4
+    else:
+        return base_bits  # Base compression
+
+
+def compute_anchor_schedule(
+    num_layers: int,
+    anchor_strategy: str = "fixed",
+    anchor_interval: int = 6,
+    base_key_bits: int = 3,
+) -> List[Tuple[bool, int]]:
+    """Compute per-layer (is_fp16, key_bits) schedule for the given strategy.
+
+    Args:
+        num_layers: Total transformer layers.
+        anchor_strategy: One of "fixed", "boundary", "gradient".
+        anchor_interval: Interval for "fixed" strategy (ignored by others).
+        base_key_bits: Base key bit-width for compressed layers.
+
+    Returns:
+        List of (is_fp16, key_bits) tuples, one per layer.
+        When is_fp16 is True, the layer stores raw FP16 (key_bits is ignored).
+        When is_fp16 is False, key_bits is the bit-width for that layer's keys.
+    """
+    if anchor_strategy not in ANCHOR_STRATEGIES:
+        raise ValueError(
+            f"Unknown anchor_strategy: '{anchor_strategy}'. "
+            f"Must be one of {ANCHOR_STRATEGIES}"
+        )
+
+    schedule: List[Tuple[bool, int]] = []
+
+    if anchor_strategy == "fixed":
+        for i in range(num_layers):
+            is_fp16 = anchor_interval > 0 and i % anchor_interval == 0
+            schedule.append((is_fp16, base_key_bits))
+
+    elif anchor_strategy == "boundary":
+        # First 2 + last 2 layers are always FP16
+        for i in range(num_layers):
+            is_fp16 = i < 2 or i >= num_layers - 2
+            schedule.append((is_fp16, base_key_bits))
+
+    elif anchor_strategy == "gradient":
+        # Boundary FP16 + gradient bit allocation for middle layers
+        for i in range(num_layers):
+            key_bits = compute_layer_key_bits(i, num_layers, base_key_bits)
+            is_fp16 = key_bits == 8
+            schedule.append((is_fp16, key_bits))
+
+    return schedule
 
 
 # ---------------------------------------------------------------------------
@@ -619,27 +715,69 @@ class GenerationCache:
     The first KV cache compression that matches FP16 generation quality.
 
     Uses a novel combination discovered through autoresearch:
-    - 3-bit Lloyd-Max quantization for keys (8 centroids)
+    - Lloyd-Max quantization for keys and values
     - 1-bit direct residual sign correction (NOT QJL random projection)
-    - 2-bit Lloyd-Max quantization for values
     - Norm correction (original/reconstruction ratio)
     - FP16 window: last N tokens stored at full precision
+    - FP16 anchor layers every N layers to break error accumulation
 
-    Compression: 5.1x vs FP16 at matching generation quality.
+    Defaults tuned from a 246-configuration autoresearch sweep:
+    - K4/V3 anchor=12 win=64 RQ=True is a safe middle ground (default)
+    - K8/V3 anchor=12 is the quality champion (96.4% of FP16, 2.5x compression)
+    - K3/V3 anchor=36 win=64 RQ=True is the best tradeoff (95.1%, 3.3x, Gen=97%)
+    - K3/V2 anchor=6 win=512 RQ=True is the aggressive option (94.9%, higher compression)
+    - RQ=True outperforms RQ=False by 13% on average (0.801 vs 0.707)
+    - Anchors are essential: anchor=0 avg 0.408, anchor=12 avg 0.872
+
+    Anchor strategies control which layers store KV at full FP16 precision
+    to break error accumulation:
+
+    - ``"fixed"`` (default): Every ``anchor_interval``-th layer is FP16.
+      Simple, proven baseline. E.g., layers 0, 12, 24, 36.
+    - ``"boundary"``: First 2 + last 2 layers always FP16, rest compressed.
+      Based on finding that boundary layers (embedding proximity, output
+      head proximity) are most sensitive to quantization error.
+    - ``"gradient"``: Boundary layers FP16 + gradient bit allocation for
+      middle layers. Layers near boundaries get higher key_bits (4-bit),
+      middle layers get base key_bits (3-bit). Allocates bits where they
+      matter most for the same total budget.
 
     Usage::
 
         from turboquantdc import GenerationCache
 
+        # Default (safe middle ground)
         cache = GenerationCache()
+
+        # From a named preset
+        cache = GenerationCache.from_preset("balanced")
+        cache = GenerationCache.from_preset("lossless")
+        cache = GenerationCache.from_preset("aggressive")
+
+        # Preset with overrides
+        cache = GenerationCache.from_preset("balanced", fp16_window=128)
+
+        # Boundary anchoring: first 2 + last 2 FP16
+        cache = GenerationCache(anchor_strategy="boundary", num_layers=36)
+
+        # Gradient: boundary FP16 + per-layer bit allocation
+        cache = GenerationCache(anchor_strategy="gradient", num_layers=36)
+
         output = model.generate(inputs, past_key_values=cache, max_new_tokens=100)
 
     Args:
-        key_bits: Bits for key quantization (default: 3).
-        val_bits: Bits for value quantization (default: 2).
-        fp16_window: Number of recent tokens at FP16 (default: 128).
+        key_bits: Bits for key quantization (default: 4).
+        val_bits: Bits for value quantization (default: 3).
+        fp16_window: Number of recent tokens at FP16 (default: 64).
         anchor_interval: Every Nth layer is stored at FP16 to break error
-            accumulation. Set to 0 to disable anchors (default: 6).
+            accumulation. Set to 0 to disable anchors. Only used when
+            ``anchor_strategy="fixed"`` (default: 12).
+        anchor_strategy: Anchor placement strategy. One of ``"fixed"``,
+            ``"boundary"``, ``"gradient"`` (default: ``"fixed"``).
+        num_layers: Total number of transformer layers. Required for
+            ``"boundary"`` and ``"gradient"`` strategies. When None,
+            layers are created lazily on first ``update()`` call (only
+            valid for ``"fixed"`` strategy).
         seed: Random seed for reproducibility.
         use_norm_correction: Apply norm correction (original/reconstruction
             ratio) for improved perplexity. Default True per fused_attention
@@ -649,14 +787,42 @@ class GenerationCache:
             reconstruction is used. Default: True.
     """
 
+    # Quality presets from 246-config autoresearch sweep.
+    # Each maps to GenerationCache __init__ kwargs.
+    PRESETS = {
+        "lossless": {
+            "key_bits": 8,
+            "val_bits": 3,
+            "anchor_interval": 12,
+            "fp16_window": 0,
+            "use_residual_quant": False,
+        },
+        "balanced": {
+            "key_bits": 3,
+            "val_bits": 3,
+            "anchor_interval": 36,
+            "fp16_window": 64,
+            "use_residual_quant": True,
+        },
+        "aggressive": {
+            "key_bits": 3,
+            "val_bits": 2,
+            "anchor_interval": 6,
+            "fp16_window": 512,
+            "use_residual_quant": True,
+        },
+    }
+
     is_compileable = False
 
     def __init__(
         self,
-        key_bits: int = 3,
-        val_bits: int = 2,
-        fp16_window: int = 128,
-        anchor_interval: int = 6,
+        key_bits: int = 4,
+        val_bits: int = 3,
+        fp16_window: int = 64,
+        anchor_interval: int = 12,
+        anchor_strategy: str = "fixed",
+        num_layers: Optional[int] = None,
         seed: int = 42,
         use_norm_correction: bool = True,
         use_residual_quant: bool = True,
@@ -667,26 +833,85 @@ class GenerationCache:
             raise ValueError(f"val_bits must be 1-8, got {val_bits}")
         if fp16_window < 0:
             raise ValueError(f"fp16_window must be >= 0, got {fp16_window}")
+        if anchor_strategy not in ANCHOR_STRATEGIES:
+            raise ValueError(
+                f"Unknown anchor_strategy: '{anchor_strategy}'. "
+                f"Must be one of {ANCHOR_STRATEGIES}"
+            )
+        if anchor_strategy in ("boundary", "gradient") and num_layers is None:
+            raise ValueError(
+                f"num_layers is required for anchor_strategy='{anchor_strategy}'"
+            )
 
         self.key_bits = key_bits
         self.val_bits = val_bits
         self.fp16_window = fp16_window
         self.anchor_interval = anchor_interval
+        self.anchor_strategy = anchor_strategy
+        self.num_layers = num_layers
         self.seed = seed
         self.use_norm_correction = use_norm_correction
         self.use_residual_quant = use_residual_quant
+
+        # Pre-compute anchor schedule when num_layers is known
+        self._anchor_schedule: Optional[List[Tuple[bool, int]]] = None
+        if num_layers is not None:
+            self._anchor_schedule = compute_anchor_schedule(
+                num_layers=num_layers,
+                anchor_strategy=anchor_strategy,
+                anchor_interval=anchor_interval,
+                base_key_bits=key_bits,
+            )
+
         self._layers: List[_CompressedLayer | _FP16Layer] = []
+
+    @classmethod
+    def from_preset(cls, preset: str, **overrides) -> "GenerationCache":
+        """Create a GenerationCache from a named quality preset.
+
+        Available presets (from 246-config autoresearch sweep):
+        - "lossless": K8/V3 anchor=12 (96.4% of FP16, 2.5x compression)
+        - "balanced": K3/V3 anchor=36 win=64 RQ=True (95.1%, 3.3x, Gen=97%)
+        - "aggressive": K3/V2 anchor=6 win=512 RQ=True (94.9%, higher compression)
+
+        Args:
+            preset: One of "lossless", "balanced", "aggressive".
+            **overrides: Any GenerationCache kwarg to override the preset value.
+
+        Returns:
+            A new GenerationCache configured from the preset.
+
+        Raises:
+            KeyError: If preset is not a recognized preset name.
+        """
+        if preset not in cls.PRESETS:
+            raise KeyError(
+                f"Unknown preset '{preset}'. "
+                f"Available presets: {list(cls.PRESETS.keys())}"
+            )
+        config = cls.PRESETS[preset].copy()
+        config.update(overrides)
+        return cls(**config)
 
     def _is_anchor_layer(self, idx: int) -> bool:
         """Return True if layer ``idx`` should be stored at FP16."""
+        if self._anchor_schedule is not None and idx < len(self._anchor_schedule):
+            return self._anchor_schedule[idx][0]
+        # Fallback for fixed strategy when num_layers is unknown (lazy growth)
         return self.anchor_interval > 0 and idx % self.anchor_interval == 0
+
+    def _layer_key_bits(self, idx: int) -> int:
+        """Return key bit-width for layer ``idx``."""
+        if self._anchor_schedule is not None and idx < len(self._anchor_schedule):
+            return self._anchor_schedule[idx][1]
+        return self.key_bits
 
     def _make_layer(self, idx: int) -> _CompressedLayer | _FP16Layer:
         """Create the appropriate layer type for index ``idx``."""
         if self._is_anchor_layer(idx):
             return _FP16Layer()
         return _CompressedLayer(
-            key_bits=self.key_bits,
+            key_bits=self._layer_key_bits(idx),
             val_bits=self.val_bits,
             fp16_window=self.fp16_window,
             seed=self.seed + idx,
@@ -875,9 +1100,11 @@ class GenerationCache:
 
         for i, layer in enumerate(self._layers):
             stats = layer.memory_usage_bits()
+            layer_key_bits = self._layer_key_bits(i)
             per_layer.append({
                 "layer": i,
                 "is_anchor": self._is_anchor_layer(i),
+                "key_bits": layer_key_bits,
                 **stats,
             })
             total_compressed += stats["total_bits"]
@@ -895,9 +1122,61 @@ class GenerationCache:
                 "val_bits": self.val_bits,
                 "fp16_window": self.fp16_window,
                 "anchor_interval": self.anchor_interval,
+                "anchor_strategy": self.anchor_strategy,
                 "use_residual_quant": self.use_residual_quant,
             },
             "num_layers": len(self._layers),
+        }
+
+    def anchor_summary(self) -> Dict[str, Any]:
+        """Return a summary of the anchor schedule for all layers.
+
+        Useful for inspecting exactly which layers are FP16 anchors and
+        the per-layer key bit-widths when using gradient strategy.
+
+        Returns:
+            Dict with:
+                - strategy: Anchor strategy name.
+                - num_layers: Total layer count (from schedule or actual).
+                - fp16_layers: List of layer indices that are FP16 anchors.
+                - per_layer_key_bits: List of key bit-widths per layer
+                  (8 for FP16 anchor layers).
+                - fp16_count: Number of FP16 anchor layers.
+                - compressed_count: Number of compressed layers.
+                - avg_key_bits: Average effective key bits across all layers.
+        """
+        n = self.num_layers if self.num_layers is not None else len(self._layers)
+        if n == 0:
+            return {
+                "strategy": self.anchor_strategy,
+                "num_layers": 0,
+                "fp16_layers": [],
+                "per_layer_key_bits": [],
+                "fp16_count": 0,
+                "compressed_count": 0,
+                "avg_key_bits": 0.0,
+            }
+
+        fp16_layers = []
+        per_layer_key_bits = []
+        for i in range(n):
+            is_fp16 = self._is_anchor_layer(i)
+            kb = 16 if is_fp16 else self._layer_key_bits(i)
+            per_layer_key_bits.append(kb)
+            if is_fp16:
+                fp16_layers.append(i)
+
+        fp16_count = len(fp16_layers)
+        avg_bits = sum(per_layer_key_bits) / n if n > 0 else 0.0
+
+        return {
+            "strategy": self.anchor_strategy,
+            "num_layers": n,
+            "fp16_layers": fp16_layers,
+            "per_layer_key_bits": per_layer_key_bits,
+            "fp16_count": fp16_count,
+            "compressed_count": n - fp16_count,
+            "avg_key_bits": avg_bits,
         }
 
     def config_summary(self) -> str:
@@ -905,8 +1184,11 @@ class GenerationCache:
         n_layers = len(self._layers)
         n_anchor = sum(1 for i in range(n_layers) if self._is_anchor_layer(i))
         rq_desc = "+ 1b residual signs" if self.use_residual_quant else "(no residual signs)"
+        strategy_desc = f"anchor={self.anchor_strategy}"
+        if self.anchor_strategy == "fixed":
+            strategy_desc += f" interval={self.anchor_interval}"
         return (
             f"GenerationCache: {self.key_bits}b keys {rq_desc}, "
             f"{self.val_bits}b values, FP16 window={self.fp16_window}, "
-            f"{n_anchor}/{n_layers} anchor layers"
+            f"{n_anchor}/{n_layers} anchor layers ({strategy_desc})"
         )

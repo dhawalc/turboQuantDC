@@ -49,7 +49,13 @@ from .asymmetric import (
     create_asymmetric_cache,
     analyze_kv_norms,
 )
-from .generation_cache import GenerationCache
+from .generation_cache import (
+    GenerationCache,
+    compute_anchor_schedule,
+    compute_layer_key_bits,
+    ANCHOR_STRATEGIES,
+)
+GENERATION_PRESETS = GenerationCache.PRESETS
 from .channel_adaptive import (
     ChannelAdaptiveCache,
     ChannelAdaptivePolarQuant,
@@ -66,6 +72,7 @@ from .entropy_coding import (
     measure_index_entropy,
     theoretical_index_entropy,
 )
+from .token_eviction import EvictionCache
 
 __all__ = [
     # Codebook
@@ -127,6 +134,10 @@ __all__ = [
     "analyze_kv_norms",
     # Production Generation Cache
     "GenerationCache",
+    "GENERATION_PRESETS",
+    "compute_anchor_schedule",
+    "compute_layer_key_bits",
+    "ANCHOR_STRATEGIES",
     # Channel-Adaptive Mixed Precision
     "ChannelAdaptiveCache",
     "ChannelAdaptivePolarQuant",
@@ -141,6 +152,8 @@ __all__ = [
     "theoretical_index_entropy",
     "compression_opportunity",
     "entropy_analysis_sweep",
+    # Token Eviction
+    "EvictionCache",
 ]
 
 __version__ = "0.2.0"
