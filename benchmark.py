@@ -9,8 +9,8 @@ Tier 1 -- Perplexity (primary, fast, ~30s per config):
 Tier 2 -- Generation Quality (medium, ~60s per config):
     12 diverse prompts covering factual recall, math, code, reasoning,
     long-context recall, and translation.
-    Scored by comparing compressed output to FP16 baseline output
-    using token-level Jaccard similarity + keyword matching.
+    Scored using absolute quality metrics (correctness + coherence +
+    completeness) -- no FP16 baseline comparison for generation.
 
 Tier 2b -- Needle-in-Haystack:
     Embed a fact in context, ask about it later.
@@ -107,49 +107,58 @@ GENERATION_PROMPTS = [
     {
         "prompt": "What is the capital of Australia? Answer with just the city name:",
         "expected": ["Canberra"],
+        "expected_keywords": ["Canberra"],
         "type": "factual",
     },
     {
         "prompt": "What is the largest planet in our solar system? Answer briefly:",
         "expected": ["Jupiter"],
+        "expected_keywords": ["Jupiter"],
         "type": "factual",
     },
     {
         "prompt": "What is the chemical formula for water?",
         "expected": ["H2O"],
+        "expected_keywords": ["H2O"],
         "type": "factual",
     },
     {
         "prompt": "What element has atomic number 79?",
         "expected": ["Gold", "Au"],
+        "expected_keywords": ["gold", "Au"],
         "type": "factual",
     },
     # --- Math (2 prompts) ---
     {
         "prompt": "What is 15 + 27? Answer with just the number:",
         "expected": ["42"],
+        "expected_keywords": ["42"],
         "type": "math",
     },
     {
         "prompt": "What is 144 divided by 12?",
         "expected": ["12"],
+        "expected_keywords": ["12"],
         "type": "math",
     },
     # --- Code (2 prompts) ---
     {
         "prompt": "Write a Python function that returns the factorial of n:",
         "expected": ["def ", "factorial", "return"],
+        "expected_keywords": ["def", "return"],
         "type": "code",
     },
     {
         "prompt": "Write a Python function to check if a string is a palindrome:",
         "expected": ["def ", "return", "[::-1]"],
+        "expected_keywords": ["def", "return"],
         "type": "code",
     },
     # --- Reasoning (2 prompts) ---
     {
         "prompt": "Explain photosynthesis in one sentence:",
         "expected": ["light", "energy", "plant"],
+        "expected_keywords": ["light", "sun", "energy", "carbon"],
         "type": "reasoning",
     },
     {
@@ -159,18 +168,21 @@ GENERATION_PROMPTS = [
             "trip? Show your work."
         ),
         "expected": ["60"],
+        "expected_keywords": ["60"],
         "type": "reasoning",
     },
     # --- Long-context recall ---
     {
         "prompt": "List three primary colors:",
         "expected": ["red", "blue"],
+        "expected_keywords": ["red", "blue"],
         "type": "factual",
     },
     # --- Translation ---
     {
         "prompt": "Translate to French: 'The cat is on the table.'",
         "expected": ["chat", "table"],
+        "expected_keywords": ["chat", "table", "Le", "La"],
         "type": "translation",
     },
 ]
@@ -240,11 +252,104 @@ def normalize_ppl_score(baseline_ppl: float, compressed_ppl: float) -> float:
     return max(min(score, 1.0), 0.0)
 
 
+def score_correctness(response: str, expected_keywords: List[str]) -> float:
+    """Score whether the response contains correct answer keywords.
+
+    Uses case-insensitive matching. Any single keyword match counts as correct
+    (OR logic), since expected_keywords may list acceptable alternatives.
+
+    Args:
+        response: Model output text.
+        expected_keywords: List of acceptable answer keywords.
+
+    Returns:
+        1.0 if any keyword found, 0.0 otherwise.
+    """
+    if not expected_keywords:
+        return 0.0
+    resp_lower = response.lower()
+    for kw in expected_keywords:
+        if kw.lower() in resp_lower:
+            return 1.0
+    return 0.0
+
+
+def score_coherence(response: str) -> float:
+    """Score response coherence by measuring repetition via 4-gram uniqueness.
+
+    A coherent response has mostly unique 4-grams. Heavy repetition
+    (e.g. "the the the the...") produces a low ratio.
+
+    Args:
+        response: Model output text.
+
+    Returns:
+        Float in [0, 1]. 0.0 if ratio < 0.3 (garbled repetition).
+    """
+    words = response.split()
+    if len(words) < 4:
+        # Too short to measure 4-grams; give benefit of the doubt
+        return 0.5 if len(words) >= 1 else 0.0
+
+    ngrams = [tuple(words[i:i + 4]) for i in range(len(words) - 3)]
+    total = len(ngrams)
+    unique = len(set(ngrams))
+
+    ratio = unique / total if total > 0 else 0.0
+    if ratio < 0.3:
+        return 0.0
+    return ratio
+
+
+def score_completeness(response: str) -> float:
+    """Score response completeness based on word count.
+
+    - 10-200 words: 1.0 (ideal range)
+    - 5-10 or 200-400 words: 0.5 (acceptable)
+    - <5 or >400 words: 0.0 (too short or runaway generation)
+
+    Args:
+        response: Model output text.
+
+    Returns:
+        Float in {0.0, 0.5, 1.0}.
+    """
+    word_count = len(response.split())
+    if 10 <= word_count <= 200:
+        return 1.0
+    if 5 <= word_count < 10 or 200 < word_count <= 400:
+        return 0.5
+    return 0.0
+
+
+def score_response_absolute(prompt_config: Dict, response: str) -> float:
+    """Absolute quality score for a single response.
+
+    Three components weighted:
+        - Correctness (50%): expected keyword present in response
+        - Coherence (30%): unique 4-grams / total 4-grams
+        - Completeness (20%): response length in acceptable range
+
+    Args:
+        prompt_config: Prompt dict with 'expected_keywords' field.
+        response: Model output text.
+
+    Returns:
+        Float in [0, 1].
+    """
+    keywords = prompt_config.get("expected_keywords", prompt_config.get("expected", []))
+    corr = score_correctness(response, keywords)
+    cohr = score_coherence(response)
+    comp = score_completeness(response)
+    return 0.5 * corr + 0.3 * cohr + 0.2 * comp
+
+
 def score_response_similarity(baseline_response: str, compressed_response: str) -> float:
     """Score how similar two responses are using token-level Jaccard + keyword overlap.
 
-    This replaces the old binary keyword matching.  It compares the full
-    responses rather than looking for a fixed keyword list.
+    DEPRECATED: Kept for backward compatibility. Use score_response_absolute instead.
+    Relative comparison is fundamentally broken because FP16 baseline itself
+    produces wrong answers and autoregressive generation is chaotic.
 
     Args:
         baseline_response: FP16 baseline output.
@@ -474,13 +579,26 @@ class BenchmarkRunner:
     # ---- Tier 2: Generation Quality ----
 
     def _generate(self, prompt: str, cache=None) -> str:
-        """Generate text with optional KV cache."""
-        inputs = self.tokenizer(prompt, return_tensors="pt").to(self.model.device)
+        """Generate text with optional KV cache.
+
+        Applies the model's chat template for better instruction following
+        and uses repetition_penalty to prevent generation loops.
+        """
+        # Wrap prompt with chat template for Instruct models
+        messages = [
+            {"role": "system", "content": "You are a helpful assistant. Answer concisely."},
+            {"role": "user", "content": prompt},
+        ]
+        templated = self.tokenizer.apply_chat_template(
+            messages, tokenize=False, add_generation_prompt=True,
+        )
+        inputs = self.tokenizer(templated, return_tensors="pt").to(self.model.device)
         with torch.no_grad():
             kwargs = dict(
                 **inputs,
                 max_new_tokens=self.max_new_tokens,
                 do_sample=DO_SAMPLE,
+                repetition_penalty=1.15,
             )
             if cache is not None:
                 kwargs["past_key_values"] = cache
@@ -509,14 +627,14 @@ class BenchmarkRunner:
     ) -> Tuple[float, List[Dict[str, Any]]]:
         """Evaluate generation quality on the 12-prompt suite.
 
-        If baseline_responses is provided, scores are computed by comparing
-        compressed output to FP16 baseline (self-judge).  Otherwise falls back
-        to keyword matching.
+        Uses absolute quality scoring (correctness + coherence + completeness).
+        The baseline_responses parameter is accepted for API compatibility but
+        is no longer used for scoring.
 
         Args:
             config: Cache configuration dict.
             build_cache_fn: Callable that returns a fresh cache for the config.
-            baseline_responses: Optional dict mapping prompt text to FP16 output.
+            baseline_responses: Ignored. Kept for API compatibility.
 
         Returns:
             (score, per_prompt_details) where score is 0-1.
@@ -535,29 +653,20 @@ class BenchmarkRunner:
             except Exception as e:
                 response = f"[ERROR: {e}]"
 
-            # Similarity score (self-judge against baseline)
-            if baseline_responses and prompt_cfg["prompt"] in baseline_responses:
-                sim_score = score_response_similarity(
-                    baseline_responses[prompt_cfg["prompt"]],
-                    response,
-                )
-            else:
-                # Fallback: keyword matching
-                expected = prompt_cfg["expected"]
-                found = sum(1 for e in expected if e.lower() in response.lower())
-                sim_score = found / len(expected) if expected else 0.0
+            # Absolute quality score (correctness + coherence + completeness)
+            abs_score = score_response_absolute(prompt_cfg, response)
 
             # Legacy score for backward compatibility
             legacy = score_response_legacy(prompt_cfg, response)
 
-            total_score += sim_score
+            total_score += abs_score
             total_legacy += legacy
 
             per_prompt.append({
                 "prompt": prompt_cfg["prompt"],
                 "type": prompt_cfg["type"],
                 "response": response[:300],
-                "score": round(sim_score, 4),
+                "score": round(abs_score, 4),
                 "legacy_score": round(legacy, 4),
             })
 
@@ -739,9 +848,10 @@ class BenchmarkRunner:
         result.ppl_score = 1.0
         result.ppl_increase_pct = 0.0
 
-        # Generation
+        # Generation -- absolute quality scoring (same metric as compressed)
         filler = self._build_filler_prefix()
         per_prompt = []
+        total_gen_score = 0.0
         for prompt_cfg in GENERATION_PROMPTS:
             full_prompt = filler + "\n\n" + prompt_cfg["prompt"]
             try:
@@ -749,17 +859,21 @@ class BenchmarkRunner:
             except Exception as e:
                 response = f"[ERROR: {e}]"
 
-            # Baseline scores 1.0 against itself
+            # Absolute quality score (same metric used for compressed configs)
+            abs_score = score_response_absolute(prompt_cfg, response)
             legacy = score_response_legacy(prompt_cfg, response)
+            total_gen_score += abs_score
             per_prompt.append({
                 "prompt": prompt_cfg["prompt"],
                 "type": prompt_cfg["type"],
                 "response": response[:300],
-                "score": 1.0,  # Self-comparison
+                "score": round(abs_score, 4),
                 "legacy_score": round(legacy, 4),
             })
 
-        result.gen_score = 1.0
+        result.gen_score = round(
+            total_gen_score / len(GENERATION_PROMPTS), 4
+        ) if GENERATION_PROMPTS else 0.0
         result.per_prompt = per_prompt
         result.legacy_score = round(
             sum(p.get("legacy_score", 0) for p in per_prompt) / len(per_prompt), 4
