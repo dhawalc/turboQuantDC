@@ -26,7 +26,7 @@ import triton
 import triton.language as tl
 
 from .codebook import LloydMaxCodebook
-from .rotation import generate_qjl_matrix, generate_rotation_matrix, fast_wht
+from .rotation import generate_qjl_matrix, generate_rotation_matrix
 
 
 # ---------------------------------------------------------------------------
@@ -663,58 +663,24 @@ class TritonTurboQuant:
 # The WHT butterfly is O(d log d) vs O(d^2) for dense rotation.
 # Each thread block processes one vector, entirely in registers.
 #
-# Approach: For each butterfly stage h = 1, 2, 4, ..., d/2:
-#   partner[i] = i XOR h
-#   if i & h == 0:  x[i] = x[i] + x[partner]  (sum half)
-#   else:           x[i] = x[partner] - x[i]   (diff half)
+# Implementation uses Triton's reshape/split/join primitives for the butterfly,
+# which are pure register operations with no global or shared memory
+# round-trips. This avoids the store-load hazards that plague the XOR-based
+# exchange pattern in global memory.
 #
-# Since Triton doesn't support in-place register updates within a single
-# tile expression, we use the pattern:
-#   x_partner = gather x by XOR indices
-#   x_new = where(is_lo, x + x_partner, x_partner - x)
+# For each butterfly stage h = 1, 2, 4, ..., d/2:
+#   View x as (n_groups, 2, h), then:
+#     a = x[:, 0, :]  (lo halves)
+#     b = x[:, 1, :]  (hi halves)
+#     x[:, 0, :] = a + b
+#     x[:, 1, :] = a - b
 #
-# The loop must be unrolled with tl.constexpr bounds. We unroll up to
-# log2(512) = 9 stages, which covers d up to 512 (our max head dim).
+# In Triton this maps to:
+#   reshape -> permute -> split -> add/sub -> join -> permute -> reshape
+#
+# Unrolled for up to log2(512) = 9 stages (d up to 512).
+# BLOCK_SIZE must equal d (both constexpr, both powers of 2).
 # ---------------------------------------------------------------------------
-
-
-@triton.jit
-def _wht_butterfly_stage(x, offs, h: tl.constexpr, BLOCK_SIZE: tl.constexpr):
-    """Execute one butterfly stage of the Walsh-Hadamard Transform.
-
-    For stride h, pairs (i, i XOR h) perform:
-      lo = x[i] + x[i^h]     when i & h == 0
-      hi = x[i^h] - x[i]     when i & h != 0
-
-    This is equivalent to the standard butterfly but expressed as a
-    parallel map over all indices.
-    """
-    partner = offs ^ h
-    # Gather partner values. Since the full vector is in the register tile,
-    # we reindex via tl.load-from-tensor pattern. Triton does not support
-    # arbitrary register gather, so we store to SRAM and reload.
-    # However, for constexpr BLOCK_SIZE Triton can optimize this.
-    #
-    # The key insight: x[partner] for ALL indices simultaneously.
-    # We cannot index a register tile by another tile. Instead we
-    # must go through shared memory (pointer-based load/store).
-    # But we already have x loaded — we need a data exchange.
-    #
-    # Triton pattern for butterfly: use the "where" merge approach.
-    # For each pair (lo_idx, hi_idx) where hi_idx = lo_idx ^ h:
-    #   new[lo_idx] = old[lo_idx] + old[hi_idx]
-    #   new[hi_idx] = old[lo_idx] - old[hi_idx]
-    #
-    # Expressed in terms of ALL indices i:
-    #   is_lo = (i & h) == 0
-    #   partner_val = <need to get x[i ^ h]>
-    #   new[i] = where(is_lo, x[i] + partner_val, partner_val - x[i])
-    #
-    # The challenge is getting partner_val. In Triton, within a single
-    # block, we can use tl.load from a shared memory pointer that we
-    # wrote to earlier. This is the standard pattern for permutations.
-    is_lo = (offs & h) == 0
-    return is_lo, partner
 
 
 @triton.jit
@@ -728,14 +694,26 @@ def _wht_kernel(
     log_d: tl.constexpr,
     BLOCK_SIZE: tl.constexpr,
 ):
-    """Fused randomized Walsh-Hadamard Transform.
+    """Fused randomized Walsh-Hadamard Transform via register butterfly.
 
     Forward:  out = WHT(signs * x) / sqrt(d)
     Inverse:  out = signs * WHT(x) / sqrt(d)
 
     Each program processes one vector. The entire d-dimensional vector
-    fits in a BLOCK_SIZE register tile (BLOCK_SIZE >= d, power of 2).
-    Butterfly stages use scratch memory for the partner exchange.
+    fits in a BLOCK_SIZE register tile (BLOCK_SIZE == d, power of 2).
+
+    The butterfly is implemented using reshape/split/join -- pure register
+    operations with no global or shared memory round-trips. For each
+    stage h = 1, 2, 4, ..., d/2:
+
+        x viewed as (d/(2h), 2, h):
+            a = x[:, 0, :]  (lo halves)
+            b = x[:, 1, :]  (hi halves)
+            x[:, 0, :] = a + b
+            x[:, 1, :] = a - b
+
+    In Triton this maps to:
+        reshape -> permute -> split -> add/sub -> join -> permute -> reshape
     """
     pid = tl.program_id(0)
     if pid >= batch_size:
@@ -755,83 +733,86 @@ def _wht_kernel(
         x = x * s
     # else: for inverse, apply WHT first, then signs (after the loop)
 
-    # --- Butterfly stages ---
-    # Unrolled up to 9 stages (d <= 512).
-    # Each stage: h = 1, 2, 4, ..., d/2
-    # We use scratch pointer (out_ptr row for this pid) as exchange buffer.
-    scratch_base = out_ptr + pid * d
+    # --- Butterfly stages (pure register ops via reshape/split/join) ---
 
-    # Stage with h = 1
+    # Stage h=1: reshape (BS,) -> (BS/2, 2), split on last dim
     if log_d > 0:
-        tl.store(scratch_base + offs, x, mask=mask)
-        partner_offs = offs ^ 1
-        x_partner = tl.load(scratch_base + partner_offs, mask=partner_offs < d, other=0.0)
-        is_lo = (offs & 1) == 0
-        x = tl.where(is_lo, x + x_partner, x_partner - x)
+        x_2d = tl.reshape(x, BLOCK_SIZE // 2, 2)
+        a, b = tl.split(x_2d)
+        x_2d = tl.join(a + b, a - b)
+        x = tl.reshape(x_2d, BLOCK_SIZE)
 
-    # Stage with h = 2
+    # Stage h=2: reshape -> (BS/4, 2, 2), permute lo/hi to last dim
     if log_d > 1:
-        tl.store(scratch_base + offs, x, mask=mask)
-        partner_offs = offs ^ 2
-        x_partner = tl.load(scratch_base + partner_offs, mask=partner_offs < d, other=0.0)
-        is_lo = (offs & 2) == 0
-        x = tl.where(is_lo, x + x_partner, x_partner - x)
+        x_3d = tl.reshape(x, BLOCK_SIZE // 4, 2, 2)
+        x_3d = tl.permute(x_3d, 0, 2, 1)
+        a, b = tl.split(x_3d)
+        x_3d = tl.join(a + b, a - b)
+        x_3d = tl.permute(x_3d, 0, 2, 1)
+        x = tl.reshape(x_3d, BLOCK_SIZE)
 
-    # Stage with h = 4
+    # Stage h=4
     if log_d > 2:
-        tl.store(scratch_base + offs, x, mask=mask)
-        partner_offs = offs ^ 4
-        x_partner = tl.load(scratch_base + partner_offs, mask=partner_offs < d, other=0.0)
-        is_lo = (offs & 4) == 0
-        x = tl.where(is_lo, x + x_partner, x_partner - x)
+        x_3d = tl.reshape(x, BLOCK_SIZE // 8, 2, 4)
+        x_3d = tl.permute(x_3d, 0, 2, 1)
+        a, b = tl.split(x_3d)
+        x_3d = tl.join(a + b, a - b)
+        x_3d = tl.permute(x_3d, 0, 2, 1)
+        x = tl.reshape(x_3d, BLOCK_SIZE)
 
-    # Stage with h = 8
+    # Stage h=8
     if log_d > 3:
-        tl.store(scratch_base + offs, x, mask=mask)
-        partner_offs = offs ^ 8
-        x_partner = tl.load(scratch_base + partner_offs, mask=partner_offs < d, other=0.0)
-        is_lo = (offs & 8) == 0
-        x = tl.where(is_lo, x + x_partner, x_partner - x)
+        x_3d = tl.reshape(x, BLOCK_SIZE // 16, 2, 8)
+        x_3d = tl.permute(x_3d, 0, 2, 1)
+        a, b = tl.split(x_3d)
+        x_3d = tl.join(a + b, a - b)
+        x_3d = tl.permute(x_3d, 0, 2, 1)
+        x = tl.reshape(x_3d, BLOCK_SIZE)
 
-    # Stage with h = 16
+    # Stage h=16
     if log_d > 4:
-        tl.store(scratch_base + offs, x, mask=mask)
-        partner_offs = offs ^ 16
-        x_partner = tl.load(scratch_base + partner_offs, mask=partner_offs < d, other=0.0)
-        is_lo = (offs & 16) == 0
-        x = tl.where(is_lo, x + x_partner, x_partner - x)
+        x_3d = tl.reshape(x, BLOCK_SIZE // 32, 2, 16)
+        x_3d = tl.permute(x_3d, 0, 2, 1)
+        a, b = tl.split(x_3d)
+        x_3d = tl.join(a + b, a - b)
+        x_3d = tl.permute(x_3d, 0, 2, 1)
+        x = tl.reshape(x_3d, BLOCK_SIZE)
 
-    # Stage with h = 32
+    # Stage h=32
     if log_d > 5:
-        tl.store(scratch_base + offs, x, mask=mask)
-        partner_offs = offs ^ 32
-        x_partner = tl.load(scratch_base + partner_offs, mask=partner_offs < d, other=0.0)
-        is_lo = (offs & 32) == 0
-        x = tl.where(is_lo, x + x_partner, x_partner - x)
+        x_3d = tl.reshape(x, BLOCK_SIZE // 64, 2, 32)
+        x_3d = tl.permute(x_3d, 0, 2, 1)
+        a, b = tl.split(x_3d)
+        x_3d = tl.join(a + b, a - b)
+        x_3d = tl.permute(x_3d, 0, 2, 1)
+        x = tl.reshape(x_3d, BLOCK_SIZE)
 
-    # Stage with h = 64
+    # Stage h=64
     if log_d > 6:
-        tl.store(scratch_base + offs, x, mask=mask)
-        partner_offs = offs ^ 64
-        x_partner = tl.load(scratch_base + partner_offs, mask=partner_offs < d, other=0.0)
-        is_lo = (offs & 64) == 0
-        x = tl.where(is_lo, x + x_partner, x_partner - x)
+        x_3d = tl.reshape(x, BLOCK_SIZE // 128, 2, 64)
+        x_3d = tl.permute(x_3d, 0, 2, 1)
+        a, b = tl.split(x_3d)
+        x_3d = tl.join(a + b, a - b)
+        x_3d = tl.permute(x_3d, 0, 2, 1)
+        x = tl.reshape(x_3d, BLOCK_SIZE)
 
-    # Stage with h = 128
+    # Stage h=128
     if log_d > 7:
-        tl.store(scratch_base + offs, x, mask=mask)
-        partner_offs = offs ^ 128
-        x_partner = tl.load(scratch_base + partner_offs, mask=partner_offs < d, other=0.0)
-        is_lo = (offs & 128) == 0
-        x = tl.where(is_lo, x + x_partner, x_partner - x)
+        x_3d = tl.reshape(x, BLOCK_SIZE // 256, 2, 128)
+        x_3d = tl.permute(x_3d, 0, 2, 1)
+        a, b = tl.split(x_3d)
+        x_3d = tl.join(a + b, a - b)
+        x_3d = tl.permute(x_3d, 0, 2, 1)
+        x = tl.reshape(x_3d, BLOCK_SIZE)
 
-    # Stage with h = 256
+    # Stage h=256
     if log_d > 8:
-        tl.store(scratch_base + offs, x, mask=mask)
-        partner_offs = offs ^ 256
-        x_partner = tl.load(scratch_base + partner_offs, mask=partner_offs < d, other=0.0)
-        is_lo = (offs & 256) == 0
-        x = tl.where(is_lo, x + x_partner, x_partner - x)
+        x_3d = tl.reshape(x, BLOCK_SIZE // 512, 2, 256)
+        x_3d = tl.permute(x_3d, 0, 2, 1)
+        a, b = tl.split(x_3d)
+        x_3d = tl.join(a + b, a - b)
+        x_3d = tl.permute(x_3d, 0, 2, 1)
+        x = tl.reshape(x_3d, BLOCK_SIZE)
 
     # Normalize by 1/sqrt(d)
     d_float = d + 0.0  # promote constexpr int to float
