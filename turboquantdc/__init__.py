@@ -97,6 +97,12 @@ from .streaming_70b import (
     MemoryPlanner,
     StreamingModel,
 )
+from .cross_layer_kv import (
+    CrossLayerKVCache,
+    measure_cross_layer_kv_correlation,
+    measure_distribution_similarity,
+    correlation_report,
+)
 from .ultra_streaming import (
     KNOWN_ARCHITECTURES,
     KVManager,
@@ -249,6 +255,11 @@ __all__ = [
     "WeightManager",
     "format_plan_report",
     "plan_memory",
+    # Cross-Layer KV Sharing
+    "CrossLayerKVCache",
+    "measure_cross_layer_kv_correlation",
+    "measure_distribution_similarity",
+    "correlation_report",
 ]
 
 __version__ = "0.2.0"
