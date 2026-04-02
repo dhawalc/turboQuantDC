@@ -76,6 +76,12 @@ from .entropy_coding import (
 )
 from .token_eviction import EvictionCache
 from .self_correcting_cache import SelfCorrectingCache
+from .ultra_value_quant import (
+    UltraValueQuantizer,
+    UltraValueCache,
+    compute_value_layer_schedule,
+    sweep_value_bits,
+)
 from .residual_vq import ResidualVQ, ResidualVQCache, ResidualVQLayer
 from .weight_compression import (
     CompressedLinear,
@@ -212,6 +218,11 @@ __all__ = [
     "EvictionCache",
     # Self-Correcting Cache (periodic refresh)
     "SelfCorrectingCache",
+    # Ultra Value Quantization (1-bit V)
+    "UltraValueQuantizer",
+    "UltraValueCache",
+    "compute_value_layer_schedule",
+    "sweep_value_bits",
     # Residual Vector Quantization (2-stage RVQ)
     "ResidualVQ",
     "ResidualVQCache",
