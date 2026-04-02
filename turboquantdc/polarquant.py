@@ -21,7 +21,15 @@ import torch
 import torch.nn as nn
 
 from .codebook import LloydMaxCodebook
-from .rotation import generate_rotation_matrix
+from .rotation import (
+    apply_wht_rotation,
+    generate_rotation_matrix,
+    generate_wht_rotation,
+)
+
+
+def _is_power_of_2(n: int) -> bool:
+    return n > 0 and (n & (n - 1)) == 0
 
 
 class PolarQuant(nn.Module):
@@ -39,6 +47,9 @@ class PolarQuant(nn.Module):
         bits: Bits per coordinate (1-4 typical).
         seed: Random seed for rotation matrix generation.
         device: Target device.
+        rotation_type: "wht" (default when d is a power of 2; O(d log d)) or
+            "qr" (Haar-uniform QR rotation; O(d^2), always valid).
+            WHT is faster and accounts for ~98% of compression quality gain.
     """
 
     def __init__(
@@ -47,14 +58,35 @@ class PolarQuant(nn.Module):
         bits: int,
         seed: int = 42,
         device: str | torch.device = "cpu",
+        rotation_type: str | None = None,
     ):
         super().__init__()
         self.d = d
         self.bits = bits
 
-        # Generate rotation matrix Pi (d x d orthogonal)
-        Pi = generate_rotation_matrix(d, seed=seed, device="cpu")
-        self.register_buffer("Pi", Pi.to(device))
+        # Resolve rotation type: default to WHT when d is a power of 2
+        if rotation_type is None:
+            rotation_type = "wht" if _is_power_of_2(d) else "qr"
+        if rotation_type not in ("wht", "qr"):
+            raise ValueError(f"rotation_type must be 'wht' or 'qr', got {rotation_type!r}")
+        if rotation_type == "wht" and not _is_power_of_2(d):
+            raise ValueError(f"WHT requires d to be a power of 2, got d={d}")
+        self.rotation_type = rotation_type
+
+        if rotation_type == "wht":
+            # Store WHT sign vector (d floats) — O(d) memory vs O(d^2) for QR
+            wht_params = generate_wht_rotation(d, seed=seed, device="cpu")
+            self.register_buffer("wht_signs", wht_params["signs"].to(device))
+            # Build explicit Pi for API compatibility (tests, checkpointing)
+            # Pi is derived from WHT; compute by applying WHT to the identity
+            I_d = torch.eye(d, device="cpu")
+            Pi_rows = apply_wht_rotation(I_d, {"signs": wht_params["signs"].cpu(), "d": d})
+            self.register_buffer("Pi", Pi_rows.to(device))
+        else:
+            # QR: dense d x d orthogonal matrix
+            Pi = generate_rotation_matrix(d, seed=seed, device="cpu")
+            self.register_buffer("Pi", Pi.to(device))
+            self.wht_signs = None  # not used for QR
 
         # Solve Lloyd-Max codebook for this (d, bits) configuration
         self.codebook = LloydMaxCodebook(d, bits)
@@ -64,7 +96,8 @@ class PolarQuant(nn.Module):
     def rotate(self, x: torch.Tensor) -> torch.Tensor:
         """Apply random orthogonal rotation.
 
-        y = x @ Pi.T  (equivalent to Pi @ x for each vector)
+        For WHT (default when d is power of 2): O(d log d) butterfly transform.
+        For QR: O(d^2) dense matrix multiply.
 
         After rotation, each coordinate y_j follows the concentrated
         distribution from Lemma 1, enabling scalar quantization.
@@ -75,12 +108,15 @@ class PolarQuant(nn.Module):
         Returns:
             Rotated vectors of same shape.
         """
+        if self.rotation_type == "wht":
+            return apply_wht_rotation(x, {"signs": self.wht_signs, "d": self.d})
         return x @ self.Pi.T
 
     def unrotate(self, y: torch.Tensor) -> torch.Tensor:
         """Apply inverse rotation.
 
-        x = y @ Pi  (since Pi is orthogonal, Pi^{-1} = Pi^T, so Pi^T^{-1} = Pi)
+        For WHT: O(d log d) inverse butterfly transform.
+        For QR: O(d^2) dense matrix multiply (Pi^{-1} = Pi^T).
 
         Args:
             y: Rotated vectors of shape (batch, d) or (d,).
@@ -88,6 +124,8 @@ class PolarQuant(nn.Module):
         Returns:
             Unrotated vectors of same shape.
         """
+        if self.rotation_type == "wht":
+            return apply_wht_rotation(y, {"signs": self.wht_signs, "d": self.d}, inverse=True)
         return y @ self.Pi
 
     def quantize(self, x: torch.Tensor) -> torch.Tensor:

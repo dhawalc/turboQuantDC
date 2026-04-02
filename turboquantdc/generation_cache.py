@@ -34,7 +34,11 @@ from typing import Any, Dict, List, Optional, Tuple
 import torch
 
 from .codebook import LloydMaxCodebook
-from .rotation import generate_rotation_matrix
+from .rotation import (
+    apply_wht_rotation,
+    generate_rotation_matrix,
+    generate_wht_rotation,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -164,6 +168,7 @@ class _CompressedLayer:
         seed: int = 42,
         use_norm_correction: bool = True,
         use_residual_quant: bool = True,
+        rotation_type: str | None = None,
     ):
         self.key_bits = key_bits
         self.val_bits = val_bits
@@ -171,6 +176,8 @@ class _CompressedLayer:
         self.seed = seed
         self.use_norm_correction = use_norm_correction
         self.use_residual_quant = use_residual_quant
+        # None = auto-select (WHT when d is power of 2, else QR)
+        self._rotation_type_override = rotation_type
 
         self._seq_len: int = 0
 
@@ -180,7 +187,9 @@ class _CompressedLayer:
         self._batch_size: Optional[int] = None
         self._dtype: Optional[torch.dtype] = None
         self._device: Optional[torch.device] = None
-        self._rotation: Optional[torch.Tensor] = None
+        self._rotation_type: Optional[str] = None  # resolved during _lazy_init
+        self._rotation: Optional[torch.Tensor] = None  # dense matrix (QR only)
+        self._wht_params: Optional[dict] = None  # WHT sign vector (WHT only)
         self._key_codebook: Optional[LloydMaxCodebook] = None
         self._val_codebook: Optional[LloydMaxCodebook] = None
 
@@ -218,7 +227,26 @@ class _CompressedLayer:
         d = self._head_dim
         device = str(self._device)
 
-        self._rotation = generate_rotation_matrix(d, seed=self.seed, device=device)
+        # Resolve rotation type: prefer WHT when d is power of 2 (O(d log d))
+        is_pow2 = d > 0 and (d & (d - 1)) == 0
+        if self._rotation_type_override is not None:
+            self._rotation_type = self._rotation_type_override
+        else:
+            self._rotation_type = "wht" if is_pow2 else "qr"
+
+        if self._rotation_type == "wht":
+            if not is_pow2:
+                raise ValueError(
+                    f"WHT rotation requires d to be a power of 2, got d={d}. "
+                    "Use rotation_type='qr' for non-power-of-2 dimensions."
+                )
+            wht = generate_wht_rotation(d, seed=self.seed, device=device)
+            self._wht_params = wht
+            self._rotation = None  # not used for WHT
+        else:
+            self._rotation = generate_rotation_matrix(d, seed=self.seed, device=device)
+            self._wht_params = None  # not used for QR
+
         self._key_codebook = LloydMaxCodebook(d=d, bits=self.key_bits).to(device)
         self._val_codebook = LloydMaxCodebook(d=d, bits=self.val_bits).to(device)
 
@@ -242,8 +270,11 @@ class _CompressedLayer:
         norms = flat.norm(dim=-1, keepdim=True)
         normalized = flat / (norms + 1e-8)
 
-        # Rotate
-        rotated = normalized @ self._rotation
+        # Rotate (WHT: O(d log d); QR: O(d^2))
+        if self._rotation_type == "wht":
+            rotated = apply_wht_rotation(normalized, self._wht_params)
+        else:
+            rotated = normalized @ self._rotation
 
         # Quantize per coordinate
         indices = torch.bucketize(rotated, codebook.boundaries)
@@ -251,7 +282,10 @@ class _CompressedLayer:
 
         # Norm correction: store ratio to compensate reconstruction norm drift
         recon_rotated = codebook.centroids[indices]
-        recon_unrotated = recon_rotated @ self._rotation.T
+        if self._rotation_type == "wht":
+            recon_unrotated = apply_wht_rotation(recon_rotated, self._wht_params, inverse=True)
+        else:
+            recon_unrotated = recon_rotated @ self._rotation.T
         recon_norm = recon_unrotated.norm(dim=-1, keepdim=True)
         corrected_norms = norms * (
             norms / (recon_norm * norms.abs().clamp(min=1e-8) + 1e-8)
@@ -302,8 +336,11 @@ class _CompressedLayer:
                 + res_signs.reshape(-1, d) * res_scale.reshape(-1, 1)
             )
 
-        # Unrotate and rescale
-        reconstructed = reconstructed @ self._rotation.T
+        # Unrotate and rescale (WHT: O(d log d); QR: O(d^2))
+        if self._rotation_type == "wht":
+            reconstructed = apply_wht_rotation(reconstructed, self._wht_params, inverse=True)
+        else:
+            reconstructed = reconstructed @ self._rotation.T
         reconstructed = reconstructed * flat_norms.unsqueeze(-1)
         return reconstructed.reshape(batch, heads, seq, d)
 
@@ -323,7 +360,7 @@ class _CompressedLayer:
         Returns:
             Tuple of ``(all_keys, all_values)`` with FP16 window applied.
         """
-        if self._rotation is None:
+        if self._rotation_type is None:
             self._lazy_init(key_states, value_states)
 
         new_seq = key_states.shape[2]
@@ -500,7 +537,12 @@ class _CompressedLayer:
             )
 
         # Unrotate in float32 (avoids FP16 intermediate)
-        reconstructed = torch.matmul(reconstructed, self._rotation.float().T)
+        if self._rotation_type == "wht":
+            reconstructed = apply_wht_rotation(
+                reconstructed.float(), self._wht_params, inverse=True
+            )
+        else:
+            reconstructed = torch.matmul(reconstructed, self._rotation.float().T)
 
         # Apply norm correction: the norms stored already include the
         # correction ratio (original / reconstruction) when use_norm_correction
@@ -846,6 +888,7 @@ class GenerationCache:
         seed: int = 42,
         use_norm_correction: bool = True,
         use_residual_quant: bool = True,
+        rotation_type: str | None = None,
     ):
         if not (1 <= key_bits <= 8):
             raise ValueError(f"key_bits must be 1-8, got {key_bits}")
@@ -872,6 +915,7 @@ class GenerationCache:
         self.seed = seed
         self.use_norm_correction = use_norm_correction
         self.use_residual_quant = use_residual_quant
+        self.rotation_type = rotation_type  # None = auto (WHT for power-of-2 d)
 
         # Pre-compute anchor schedule when num_layers is known
         self._anchor_schedule: Optional[List[Tuple[bool, int]]] = None
@@ -937,6 +981,7 @@ class GenerationCache:
             seed=self.seed + idx,
             use_norm_correction=self.use_norm_correction,
             use_residual_quant=self.use_residual_quant,
+            rotation_type=self.rotation_type,
         )
 
     # ---- HF Cache protocol ----
