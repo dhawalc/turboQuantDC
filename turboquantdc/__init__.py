@@ -51,9 +51,11 @@ from .asymmetric import (
 )
 from .generation_cache import (
     GenerationCache,
+    HybridCache,
     compute_anchor_schedule,
     compute_layer_key_bits,
     ANCHOR_STRATEGIES,
+    _compute_attention_entropy,
 )
 GENERATION_PRESETS = GenerationCache.PRESETS
 from .channel_adaptive import (
@@ -73,6 +75,7 @@ from .entropy_coding import (
     theoretical_index_entropy,
 )
 from .token_eviction import EvictionCache
+from .residual_vq import ResidualVQ, ResidualVQCache, ResidualVQLayer
 
 __all__ = [
     # Codebook
@@ -134,10 +137,12 @@ __all__ = [
     "analyze_kv_norms",
     # Production Generation Cache
     "GenerationCache",
+    "HybridCache",
     "GENERATION_PRESETS",
     "compute_anchor_schedule",
     "compute_layer_key_bits",
     "ANCHOR_STRATEGIES",
+    "_compute_attention_entropy",
     # Channel-Adaptive Mixed Precision
     "ChannelAdaptiveCache",
     "ChannelAdaptivePolarQuant",
@@ -154,6 +159,10 @@ __all__ = [
     "entropy_analysis_sweep",
     # Token Eviction
     "EvictionCache",
+    # Residual Vector Quantization (2-stage RVQ)
+    "ResidualVQ",
+    "ResidualVQCache",
+    "ResidualVQLayer",
 ]
 
 __version__ = "0.2.0"
