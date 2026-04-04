@@ -1221,7 +1221,7 @@ class GenerationCache:
 
     def get_mask_sizes(
         self,
-        cache_position: torch.Tensor,
+        cache_position,
         layer_idx: int = 0,
     ) -> tuple[int, int]:
         """Return ``(kv_length, kv_offset)`` for attention mask generation.
@@ -1229,10 +1229,16 @@ class GenerationCache:
         This is the critical method that must return the correct total KV
         length including both cached tokens and new query tokens.  Getting
         this wrong produces misaligned attention masks and garbled output.
+
+        ``cache_position`` may be a ``torch.Tensor`` (transformers <=5.3)
+        or an ``int`` query_length (transformers >=5.5).
         """
+        if isinstance(cache_position, int):
+            query_length = cache_position
+        else:
+            query_length = cache_position.shape[0]
         if layer_idx >= len(self._layers):
-            return cache_position.shape[0], 0
-        query_length = cache_position.shape[0]
+            return query_length, 0
         kv_length = self._layers[layer_idx].get_seq_length() + query_length
         return kv_length, 0
 
