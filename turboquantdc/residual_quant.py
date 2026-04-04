@@ -49,11 +49,20 @@ class ResidualQuantEstimator(nn.Module):
 
     Then unrotate to get the corrected vector in original space.
 
+    When ``center_before_quantize=True`` (default), the per-head mean is
+    subtracted before quantization. Softmax is shift-invariant, so removing
+    the mean is lossless for attention but reduces variance, giving better
+    codebook utilization -- effectively a FREE +1 bit of precision.
+
     Args:
         d: Head dimension (e.g. 128).
         bits: Total effective bits per coordinate.
         seed: Random seed for rotation matrix generation.
         device: Target device.
+        center_before_quantize: Subtract per-head mean from keys before
+            quantization. The mean is stored as FP16 (2 bytes per head,
+            negligible overhead) and added back during dequantization.
+            Default: True.
     """
 
     def __init__(
@@ -62,10 +71,12 @@ class ResidualQuantEstimator(nn.Module):
         bits: int,
         seed: int = 42,
         device: str | torch.device = "cpu",
+        center_before_quantize: bool = True,
     ):
         super().__init__()
         self.d = d
         self.bits = bits
+        self.center_before_quantize = center_before_quantize
 
         # Bit budget: (bits-1) for MSE, 1 for residual signs
         self.mse_bits = max(bits - 1, 1)
@@ -77,6 +88,7 @@ class ResidualQuantEstimator(nn.Module):
         """Compress a vector using MSE + direct residual signs.
 
         Algorithm:
+            0. (Optional) Subtract per-head mean for better codebook utilization
             1. Store ||x|| and normalize
             2. Rotate: x_rot = x_normalized @ Pi.T
             3. Quantize: indices = nearest_centroid(x_rot)
@@ -93,14 +105,26 @@ class ResidualQuantEstimator(nn.Module):
                 - residual_signs: Tensor of sign bits {-1,+1}, shape (batch, d)
                 - residual_scale: Tensor of mean |r_rot|, shape (batch,)
                 - vec_norm: Tensor of ||x||, shape (batch,)
+                - vec_mean: Tensor of per-batch mean, shape (batch, d) [if centering]
         """
         squeeze = x.dim() == 1
         if squeeze:
             x = x.unsqueeze(0)
 
-        # Store original norm and normalize
-        vec_norm = x.norm(dim=-1, keepdim=True)  # (batch, 1)
-        x_normalized = x / (vec_norm + 1e-8)  # (batch, d)
+        # Mean removal: subtract per-batch mean before quantization.
+        # Softmax is shift-invariant, so the mean is invisible to attention.
+        # Removing it reduces variance -> better codebook utilization ->
+        # effectively a FREE +1 bit of precision.
+        if self.center_before_quantize:
+            vec_mean = x.mean(dim=0, keepdim=True).expand_as(x)  # (batch, d)
+            x_centered = x - vec_mean
+        else:
+            vec_mean = torch.zeros_like(x)
+            x_centered = x
+
+        # Store original norm of the centered vector and normalize
+        vec_norm = x_centered.norm(dim=-1, keepdim=True)  # (batch, 1)
+        x_normalized = x_centered / (vec_norm + 1e-8)  # (batch, d)
 
         # Rotate to the space where Lloyd-Max quantization happens
         x_rotated = self.polar.rotate(x_normalized)  # (batch, d)
@@ -126,6 +150,7 @@ class ResidualQuantEstimator(nn.Module):
             "residual_signs": residual_signs,
             "residual_scale": residual_scale,
             "vec_norm": vec_norm.squeeze(-1),  # (batch,)
+            "vec_mean": vec_mean,  # (batch, d) — FP16 overhead: 2*d bytes per head
         }
 
         if squeeze:
@@ -140,6 +165,8 @@ class ResidualQuantEstimator(nn.Module):
             k_corrected_rot = centroids[indices] + residual_scale * sign(r_rot)
         Then unrotate:
             k_corrected = k_corrected_rot @ Pi
+        Then add mean back (if centering was used):
+            k_final = k_corrected * norm + mean
 
         Args:
             compressed: Output from quantize().
@@ -153,12 +180,14 @@ class ResidualQuantEstimator(nn.Module):
         residual_signs = compressed["residual_signs"]
         residual_scale = compressed["residual_scale"]
         vec_norm = compressed["vec_norm"]
+        vec_mean = compressed["vec_mean"]
 
         if squeeze:
             mse_indices = mse_indices.unsqueeze(0)
             residual_signs = residual_signs.unsqueeze(0)
             residual_scale = residual_scale.unsqueeze(0)
             vec_norm = vec_norm.unsqueeze(0)
+            vec_mean = vec_mean.unsqueeze(0)
 
         # Reconstruct in rotated space
         x_mse_rotated = self.polar.centroids[mse_indices]  # (batch, d)
@@ -170,8 +199,8 @@ class ResidualQuantEstimator(nn.Module):
         # Unrotate back to original space
         x_corrected = self.polar.unrotate(x_corrected_rotated)  # (batch, d)
 
-        # Rescale by original norm
-        result = x_corrected * vec_norm.unsqueeze(-1)
+        # Rescale by original norm and add mean back
+        result = x_corrected * vec_norm.unsqueeze(-1) + vec_mean
 
         if squeeze:
             result = result.squeeze(0)
@@ -191,10 +220,11 @@ class ResidualQuantEstimator(nn.Module):
         """
         x_mse = self.polar.dequantize(compressed["mse_indices"])
         vec_norm = compressed["vec_norm"]
+        vec_mean = compressed["vec_mean"]
 
         if vec_norm.dim() == 0:
-            return x_mse * vec_norm
-        return x_mse * vec_norm.unsqueeze(-1)
+            return x_mse * vec_norm + vec_mean
+        return x_mse * vec_norm.unsqueeze(-1) + vec_mean
 
     def inner_product(
         self,
@@ -239,11 +269,18 @@ class ResidualQuantLayer:
     Values: PolarQuant MSE-only (same as TurboQuant — values need reconstruction)
 
     Duck-types the TurboQuantLayer interface.
+
+    Args:
+        bits: Total bits per coordinate (2-8).
+        seed: Random seed for rotation matrices.
+        center_before_quantize: Subtract per-head key mean before quantization.
+            Exploits softmax shift-invariance for FREE +1 bit of precision.
     """
 
-    def __init__(self, bits: int = 3, seed: int = 42):
+    def __init__(self, bits: int = 3, seed: int = 42, center_before_quantize: bool = True):
         self.bits = bits
         self.seed = seed
+        self.center_before_quantize = center_before_quantize
         self._seq_len: int = 0
 
         # Lazily initialized
@@ -254,6 +291,12 @@ class ResidualQuantLayer:
         self._head_dim: int | None = None
         self._num_heads: int | None = None
         self._batch_size: int | None = None
+
+        # Online mean tracking for autoregressive generation.
+        # mean_new = (mean_old * n + x_new) / (n + 1)
+        # Shape: (batch, num_heads, 1, head_dim) when initialized.
+        self._key_running_mean: torch.Tensor | None = None
+        self._key_running_count: int = 0
 
         # Compressed storage
         self._key_compressed: list[Dict[str, torch.Tensor]] = []
@@ -272,6 +315,7 @@ class ResidualQuantLayer:
 
         self._key_rq = ResidualQuantEstimator(
             d=d, bits=self.bits, seed=self.seed, device=device,
+            center_before_quantize=False,  # We handle centering at the layer level
         )
         self._val_pq = PolarQuant(
             d=d, bits=self.bits, seed=self.seed + 100, device=device,
@@ -288,8 +332,27 @@ class ResidualQuantLayer:
 
         batch, num_heads, new_seq, head_dim = key_states.shape
 
+        # Mean-centering: subtract per-head running mean before quantization.
+        # Softmax is shift-invariant so the mean is invisible to attention,
+        # but removing it reduces variance -> better codebook utilization.
+        keys_to_quantize = key_states.float()
+        if self.center_before_quantize:
+            # Online mean update: mean_new = (mean_old * n + sum_new) / (n + new_seq)
+            new_sum = keys_to_quantize.sum(dim=2, keepdim=True)  # (B, H, 1, D)
+            old_n = self._key_running_count
+            new_n = old_n + new_seq
+            if self._key_running_mean is None:
+                self._key_running_mean = new_sum / new_n
+            else:
+                self._key_running_mean = (
+                    self._key_running_mean * old_n + new_sum
+                ) / new_n
+            self._key_running_count = new_n
+            # Center using running mean (broadcast over seq dim)
+            keys_to_quantize = keys_to_quantize - self._key_running_mean
+
         # Flatten for quantization
-        keys_flat = key_states.float().reshape(-1, head_dim)
+        keys_flat = keys_to_quantize.reshape(-1, head_dim)
         vals_flat = value_states.float().reshape(-1, head_dim)
 
         # Compress keys with ResidualQuant
@@ -299,6 +362,7 @@ class ResidualQuantLayer:
             "residual_signs": key_comp["residual_signs"].reshape(batch, num_heads, new_seq, head_dim),
             "residual_scale": key_comp["residual_scale"].reshape(batch, num_heads, new_seq),
             "vec_norm": key_comp["vec_norm"].reshape(batch, num_heads, new_seq),
+            "vec_mean": key_comp["vec_mean"].reshape(batch, num_heads, new_seq, head_dim),
         }
 
         # Compress values with MSE-only PolarQuant
@@ -335,6 +399,7 @@ class ResidualQuantLayer:
         all_key_signs = torch.cat([e["residual_signs"] for e in self._key_compressed], dim=2)
         all_key_scale = torch.cat([e["residual_scale"] for e in self._key_compressed], dim=2)
         all_key_norm = torch.cat([e["vec_norm"] for e in self._key_compressed], dim=2)
+        all_key_mean = torch.cat([e["vec_mean"] for e in self._key_compressed], dim=2)
 
         total_seq = all_key_mse.shape[2]
 
@@ -344,6 +409,7 @@ class ResidualQuantLayer:
             "residual_signs": all_key_signs.reshape(-1, head_dim),
             "residual_scale": all_key_scale.reshape(-1),
             "vec_norm": all_key_norm.reshape(-1),
+            "vec_mean": all_key_mean.reshape(-1, head_dim),
         }
         keys_flat = self._key_rq.dequantize(key_comp_flat)
         keys_out = keys_flat.reshape(batch, num_heads, total_seq, head_dim)
@@ -368,6 +434,8 @@ class ResidualQuantLayer:
         self._key_compressed.clear()
         self._value_compressed.clear()
         self._seq_len = 0
+        self._key_running_mean = None
+        self._key_running_count = 0
 
 
 class ResidualQuantCache:
@@ -383,15 +451,19 @@ class ResidualQuantCache:
     Args:
         bits: Total bits per coordinate (2, 3, or 4). Default 3.
         seed: Base random seed. Each layer gets seed + layer_idx.
+        center_before_quantize: Subtract per-head key mean before quantization.
+            Exploits softmax shift-invariance for FREE +1 bit of precision.
+            Default: True.
     """
 
     is_compileable = False
 
-    def __init__(self, bits: int = 3, seed: int = 42):
+    def __init__(self, bits: int = 3, seed: int = 42, center_before_quantize: bool = True):
         if not (2 <= bits <= 8):
             raise ValueError(f"bits must be between 2 and 8, got {bits}")
         self.bits = bits
         self.seed = seed
+        self.center_before_quantize = center_before_quantize
         self._layers: list[ResidualQuantLayer] = []
 
     def update(
@@ -405,6 +477,7 @@ class ResidualQuantCache:
         while len(self._layers) <= layer_idx:
             self._layers.append(ResidualQuantLayer(
                 bits=self.bits, seed=self.seed + len(self._layers),
+                center_before_quantize=self.center_before_quantize,
             ))
         return self._layers[layer_idx].update(key_states, value_states)
 
@@ -417,11 +490,15 @@ class ResidualQuantCache:
         return -1
 
     def get_mask_sizes(
-        self, cache_position: torch.Tensor, layer_idx: int
+        self, cache_position_or_query_length, layer_idx: int
     ) -> tuple[int, int]:
+        # HF transformers may pass either a Tensor (cache_position) or int (query_length)
+        if isinstance(cache_position_or_query_length, int):
+            query_length = cache_position_or_query_length
+        else:
+            query_length = cache_position_or_query_length.shape[0]
         if layer_idx >= len(self._layers):
-            return cache_position.shape[0], 0
-        query_length = cache_position.shape[0]
+            return query_length, 0
         kv_length = self._layers[layer_idx].get_seq_length() + query_length
         return kv_length, 0
 

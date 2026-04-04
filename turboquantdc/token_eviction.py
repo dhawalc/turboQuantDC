@@ -262,6 +262,7 @@ class _EvictableLayer(_CompressedLayer):
         all_k_norms = torch.cat(self._key_norms, dim=2)
         all_k_rsigns = torch.cat(self._key_res_signs, dim=2)
         all_k_rscales = torch.cat(self._key_res_scales, dim=2)
+        all_k_means = torch.cat(self._key_means, dim=2)
         all_v_idx = torch.cat(self._val_indices, dim=2)
         all_v_norms = torch.cat(self._val_norms, dim=2)
 
@@ -274,6 +275,7 @@ class _EvictableLayer(_CompressedLayer):
         kept_k_norms = all_k_norms[:, :, mask_seq]
         kept_k_rsigns = all_k_rsigns[:, :, mask_seq, :]
         kept_k_rscales = all_k_rscales[:, :, mask_seq]
+        kept_k_means = all_k_means[:, :, mask_seq, :]
         kept_v_idx = all_v_idx[:, :, mask_seq, :]
         kept_v_norms = all_v_norms[:, :, mask_seq]
 
@@ -282,6 +284,7 @@ class _EvictableLayer(_CompressedLayer):
         self._key_norms = [kept_k_norms]
         self._key_res_signs = [kept_k_rsigns]
         self._key_res_scales = [kept_k_rscales]
+        self._key_means = [kept_k_means]
         self._val_indices = [kept_v_idx]
         self._val_norms = [kept_v_norms]
 
@@ -492,6 +495,10 @@ class EvictionCache:
                     t.repeat_interleave(repeats, dim=0)
                     for t in layer._key_res_scales
                 ]
+                layer._key_means = [
+                    t.repeat_interleave(repeats, dim=0)
+                    for t in layer._key_means
+                ]
                 layer._val_indices = [
                     t.repeat_interleave(repeats, dim=0)
                     for t in layer._val_indices
@@ -529,6 +536,7 @@ class EvictionCache:
                 layer._key_res_scales = [
                     t[indices] for t in layer._key_res_scales
                 ]
+                layer._key_means = [t[indices] for t in layer._key_means]
                 layer._val_indices = [t[indices] for t in layer._val_indices]
                 layer._val_norms = [t[indices] for t in layer._val_norms]
                 layer._raw_keys = [t[indices] for t in layer._raw_keys]

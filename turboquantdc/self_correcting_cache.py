@@ -353,6 +353,8 @@ class SelfCorrectingCache:
         if layer._key_res_signs:
             layer._key_res_signs = [torch.cat(layer._key_res_signs, dim=2)]
             layer._key_res_scales = [torch.cat(layer._key_res_scales, dim=2)]
+        if layer._key_means:
+            layer._key_means = [torch.cat(layer._key_means, dim=2)]
 
         # Invalidate dequantization cache so next access uses refreshed norms
         layer._dequant_key_cache = None

@@ -190,6 +190,7 @@ class _CompressedLayer:
         use_residual_quant: bool = True,
         rotation_type: str | None = None,
         use_triton: bool = _TRITON_AVAILABLE,
+        center_before_quantize: bool = True,
     ):
         self.key_bits = key_bits
         self.val_bits = val_bits
@@ -197,6 +198,7 @@ class _CompressedLayer:
         self.seed = seed
         self.use_norm_correction = use_norm_correction
         self.use_residual_quant = use_residual_quant
+        self.center_before_quantize = center_before_quantize
         # None = auto-select (WHT when d is power of 2, else QR)
         self._rotation_type_override = rotation_type
         self._use_triton = use_triton and _TRITON_AVAILABLE
@@ -220,11 +222,17 @@ class _CompressedLayer:
         self._triton_val_SR: Optional[torch.Tensor] = None
         self._triton_ready: bool = False
 
+        # Online mean tracking for mean-centering keys.
+        # Shape: (batch, num_heads, 1, head_dim) when initialized.
+        self._key_running_mean: Optional[torch.Tensor] = None
+        self._key_running_count: int = 0
+
         # Compressed storage (appended per update call)
         self._key_indices: List[torch.Tensor] = []
         self._key_norms: List[torch.Tensor] = []
         self._key_res_signs: List[torch.Tensor] = []
         self._key_res_scales: List[torch.Tensor] = []
+        self._key_means: List[torch.Tensor] = []  # per-chunk mean used at quantize time
         self._val_indices: List[torch.Tensor] = []
         self._val_norms: List[torch.Tensor] = []
 
@@ -524,14 +532,40 @@ class _CompressedLayer:
 
         new_seq = key_states.shape[2]
 
+        # Mean-centering: subtract per-head running mean before quantization.
+        # Softmax is shift-invariant so the mean is invisible to attention,
+        # but removing it reduces variance -> better codebook utilization.
+        keys_to_quantize = key_states
+        if self.center_before_quantize:
+            # Online mean update: mean_new = (mean_old * n + sum_new) / (n + new_seq)
+            new_sum = key_states.float().sum(dim=2, keepdim=True)  # (B, H, 1, D)
+            old_n = self._key_running_count
+            new_n = old_n + new_seq
+            if self._key_running_mean is None:
+                self._key_running_mean = new_sum / new_n
+            else:
+                self._key_running_mean = (
+                    self._key_running_mean * old_n + new_sum
+                ) / new_n
+            self._key_running_count = new_n
+            # Center using running mean (broadcast over seq dim)
+            keys_to_quantize = key_states.float() - self._key_running_mean
+            # Store the mean snapshot used for this chunk (for dequantization)
+            chunk_mean = self._key_running_mean.expand(
+                key_states.shape[0], key_states.shape[1], new_seq, key_states.shape[3]
+            ).clone()
+        else:
+            chunk_mean = torch.zeros_like(key_states)
+
         # Compress keys with residual signs
         k_idx, k_norms, k_rsigns, k_rscale = self._quantize_vectors(
-            key_states, self._key_codebook,
+            keys_to_quantize, self._key_codebook,
         )
         self._key_indices.append(k_idx)
         self._key_norms.append(k_norms)
         self._key_res_signs.append(k_rsigns)
         self._key_res_scales.append(k_rscale)
+        self._key_means.append(chunk_mean.to(key_states.dtype))
 
         # Compress values (no residual signs for values)
         v_idx, v_norms, _, _ = self._quantize_vectors(
@@ -583,6 +617,7 @@ class _CompressedLayer:
             new_k_norms_parts = []
             new_k_rsigns_parts = []
             new_k_rscales_parts = []
+            new_k_means_parts = []
             new_v_idx_parts = []
             new_v_norms_parts = []
             seen = 0
@@ -599,6 +634,7 @@ class _CompressedLayer:
                 new_k_norms_parts.append(self._key_norms[i][:, :, start_in_chunk:])
                 new_k_rsigns_parts.append(self._key_res_signs[i][:, :, start_in_chunk:, :])
                 new_k_rscales_parts.append(self._key_res_scales[i][:, :, start_in_chunk:])
+                new_k_means_parts.append(self._key_means[i][:, :, start_in_chunk:, :])
                 new_v_idx_parts.append(self._val_indices[i][:, :, start_in_chunk:, :])
                 new_v_norms_parts.append(self._val_norms[i][:, :, start_in_chunk:])
                 seen = chunk_end
@@ -608,6 +644,7 @@ class _CompressedLayer:
                 new_k_norms = torch.cat(new_k_norms_parts, dim=2)
                 new_k_rsigns = torch.cat(new_k_rsigns_parts, dim=2)
                 new_k_rscales = torch.cat(new_k_rscales_parts, dim=2)
+                new_k_means = torch.cat(new_k_means_parts, dim=2)
                 new_v_idx = torch.cat(new_v_idx_parts, dim=2)
                 new_v_norms = torch.cat(new_v_norms_parts, dim=2)
 
@@ -620,6 +657,9 @@ class _CompressedLayer:
                     new_k_rsigns if self.use_residual_quant else None,
                     new_k_rscales if self.use_residual_quant else None,
                 )
+                # Add back the stored mean for mean-centered keys
+                if self.center_before_quantize:
+                    new_keys = new_keys + new_k_means.float()
                 new_values = self._dequantize_vectors(
                     new_v_idx, new_v_norms, self._val_codebook,
                 )
@@ -755,11 +795,14 @@ class _CompressedLayer:
         self._key_norms.clear()
         self._key_res_signs.clear()
         self._key_res_scales.clear()
+        self._key_means.clear()
         self._val_indices.clear()
         self._val_norms.clear()
         self._raw_keys.clear()
         self._raw_vals.clear()
         self._seq_len = 0
+        self._key_running_mean = None
+        self._key_running_count = 0
         self._dequant_key_cache = None
         self._dequant_val_cache = None
         self._dequant_len = 0
@@ -770,6 +813,7 @@ class _CompressedLayer:
         self._key_norms = [t.index_select(0, beam_idx) for t in self._key_norms]
         self._key_res_signs = [t.index_select(0, beam_idx) for t in self._key_res_signs]
         self._key_res_scales = [t.index_select(0, beam_idx) for t in self._key_res_scales]
+        self._key_means = [t.index_select(0, beam_idx) for t in self._key_means]
         self._val_indices = [t.index_select(0, beam_idx) for t in self._val_indices]
         self._val_norms = [t.index_select(0, beam_idx) for t in self._val_norms]
         self._raw_keys = [t.index_select(0, beam_idx) for t in self._raw_keys]
@@ -792,6 +836,7 @@ class _CompressedLayer:
             all_k_norms = torch.cat(self._key_norms, dim=2)[:, :, :max_length]
             all_k_rsigns = torch.cat(self._key_res_signs, dim=2)[:, :, :max_length]
             all_k_rscales = torch.cat(self._key_res_scales, dim=2)[:, :, :max_length]
+            all_k_means = torch.cat(self._key_means, dim=2)[:, :, :max_length]
             all_v_idx = torch.cat(self._val_indices, dim=2)[:, :, :max_length]
             all_v_norms = torch.cat(self._val_norms, dim=2)[:, :, :max_length]
             raw_keys = torch.cat(self._raw_keys, dim=2)[:, :, :max_length]
@@ -801,6 +846,7 @@ class _CompressedLayer:
             self._key_norms = [all_k_norms]
             self._key_res_signs = [all_k_rsigns]
             self._key_res_scales = [all_k_rscales]
+            self._key_means = [all_k_means]
             self._val_indices = [all_v_idx]
             self._val_norms = [all_v_norms]
             self._raw_keys = [raw_keys]
@@ -1088,6 +1134,7 @@ class GenerationCache:
         use_residual_quant: bool = True,
         rotation_type: str | None = None,
         use_triton: bool = _TRITON_AVAILABLE,
+        center_before_quantize: bool = True,
     ):
         if not (1 <= key_bits <= 8):
             raise ValueError(f"key_bits must be 1-8, got {key_bits}")
@@ -1116,6 +1163,7 @@ class GenerationCache:
         self.use_residual_quant = use_residual_quant
         self.rotation_type = rotation_type  # None = auto (WHT for power-of-2 d)
         self.use_triton = use_triton
+        self.center_before_quantize = center_before_quantize
 
         # Pre-compute anchor schedule when num_layers is known
         self._anchor_schedule: Optional[List[Tuple[bool, int]]] = None
@@ -1183,6 +1231,7 @@ class GenerationCache:
             use_residual_quant=self.use_residual_quant,
             rotation_type=self.rotation_type,
             use_triton=self.use_triton,
+            center_before_quantize=self.center_before_quantize,
         )
 
     # ---- HF Cache protocol ----

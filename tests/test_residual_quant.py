@@ -72,9 +72,22 @@ class TestResidualQuantEstimator:
         assert torch.all(compressed["residual_scale"] >= 0)
 
     def test_vec_norm_matches_input(self, estimator_3bit):
-        """Stored vec_norm should match the actual input norm."""
+        """Stored vec_norm should match the norm of the (centered) input."""
         x = torch.randn(10, 128)
         compressed = estimator_3bit.quantize(x)
+        # With center_before_quantize=True (default), vec_norm is the norm
+        # of x_centered = x - mean(x), not x itself.
+        x_centered = x - x.mean(dim=0, keepdim=True)
+        expected_norms = x_centered.norm(dim=-1)
+        torch.testing.assert_close(
+            compressed["vec_norm"], expected_norms, atol=1e-5, rtol=1e-5
+        )
+
+    def test_vec_norm_matches_input_no_centering(self):
+        """Without centering, stored vec_norm should match original input norm."""
+        est = ResidualQuantEstimator(d=128, bits=3, seed=42, center_before_quantize=False)
+        x = torch.randn(10, 128)
+        compressed = est.quantize(x)
         expected_norms = x.norm(dim=-1)
         torch.testing.assert_close(
             compressed["vec_norm"], expected_norms, atol=1e-5, rtol=1e-5

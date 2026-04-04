@@ -547,9 +547,17 @@ class TestIncrementalDequantization:
         assert layer._dequant_key_cache.shape[2] == 11
 
     def test_incremental_matches_full_rebuild(self):
-        """Incremental dequantization must produce same result as full rebuild."""
-        # Build incrementally
-        cache_inc = GenerationCache(seed=SEED, anchor_interval=0, fp16_window=0)
+        """Incremental dequantization must produce same result as full rebuild.
+
+        NOTE: center_before_quantize is disabled for this test because the
+        running mean evolves differently in incremental vs. all-at-once mode,
+        which is expected behavior (the mean subtracted from each token depends
+        on which tokens have been seen so far).
+        """
+        # Build incrementally (centering disabled for exact match comparison)
+        cache_inc = GenerationCache(
+            seed=SEED, anchor_interval=0, fp16_window=0, center_before_quantize=False,
+        )
         k1, v1 = make_kv_states(batch=1, num_heads=2, seq_len=10, head_dim=64, seed=10)
         cache_inc.update(k1, v1, layer_idx=0)
         for i in range(5):
@@ -568,7 +576,9 @@ class TestIncrementalDequantization:
         all_k = torch.cat(all_keys, dim=2)
         all_v = torch.cat(all_values, dim=2)
 
-        cache_full = GenerationCache(seed=SEED, anchor_interval=0, fp16_window=0)
+        cache_full = GenerationCache(
+            seed=SEED, anchor_interval=0, fp16_window=0, center_before_quantize=False,
+        )
         k_full, v_full = cache_full.update(all_k, all_v, layer_idx=0)
 
         # Results should be close (same quantization, same dequant path)
