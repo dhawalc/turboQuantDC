@@ -117,6 +117,7 @@ from .cross_layer_kv import (
     measure_distribution_similarity,
     correlation_report,
 )
+from .adaptive_generation_cache import AdaptiveGenerationCache
 
 # ---------------------------------------------------------------------------
 # HuggingFace integration (transformers imported lazily inside the module,
@@ -325,6 +326,8 @@ __all__ = [
     "measure_cross_layer_kv_correlation",
     "measure_distribution_similarity",
     "correlation_report",
+    # Adaptive Generation Cache (unified system)
+    "AdaptiveGenerationCache",
     # Triton Kernels (optional)
     "TritonTurboQuant",
     "triton_wht_rotate",
