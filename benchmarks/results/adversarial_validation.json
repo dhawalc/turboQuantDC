@@ -1,0 +1,863 @@
+{
+  "cayley_cross_model": {
+    "3B": {
+      "per_seed": {
+        "seed_42": {
+          "0": {
+            "wht_cosine": 0.6651814579963684,
+            "wht_top5": 0.8140900135040283,
+            "cayley_cosine": 0.7706941366195679,
+            "cayley_top5": 0.9060665369033813,
+            "cayley_lift_cosine": 0.10551267862319946,
+            "cayley_lift_top5": 0.09197652339935303
+          },
+          "7": {
+            "wht_cosine": 0.9970047473907471,
+            "wht_top5": 1.0,
+            "cayley_cosine": 0.9986330270767212,
+            "cayley_top5": 1.0,
+            "cayley_lift_cosine": 0.001628279685974121,
+            "cayley_lift_top5": 0.0
+          },
+          "15": {
+            "wht_cosine": 0.9921216368675232,
+            "wht_top5": 1.0,
+            "cayley_cosine": 0.9946905374526978,
+            "cayley_top5": 1.0,
+            "cayley_lift_cosine": 0.0025689005851745605,
+            "cayley_lift_top5": 0.0
+          },
+          "23": {
+            "wht_cosine": 0.9889038801193237,
+            "wht_top5": 1.0,
+            "cayley_cosine": 0.9929651021957397,
+            "cayley_top5": 1.0,
+            "cayley_lift_cosine": 0.004061222076416016,
+            "cayley_lift_top5": 0.0
+          },
+          "35": {
+            "wht_cosine": 0.9882557988166809,
+            "wht_top5": 1.0,
+            "cayley_cosine": 0.9945406317710876,
+            "cayley_top5": 1.0,
+            "cayley_lift_cosine": 0.006284832954406738,
+            "cayley_lift_top5": 0.0
+          }
+        },
+        "seed_137": {
+          "0": {
+            "wht_cosine": 0.6333472728729248,
+            "wht_top5": 0.8336594700813293,
+            "cayley_cosine": 0.791424572467804,
+            "cayley_top5": 0.888454020023346,
+            "cayley_lift_cosine": 0.15807729959487915,
+            "cayley_lift_top5": 0.0547945499420166
+          },
+          "7": {
+            "wht_cosine": 0.9964836835861206,
+            "wht_top5": 1.0,
+            "cayley_cosine": 0.9985853433609009,
+            "cayley_top5": 1.0,
+            "cayley_lift_cosine": 0.0021016597747802734,
+            "cayley_lift_top5": 0.0
+          },
+          "15": {
+            "wht_cosine": 0.9915632605552673,
+            "wht_top5": 1.0,
+            "cayley_cosine": 0.994623064994812,
+            "cayley_top5": 1.0,
+            "cayley_lift_cosine": 0.0030598044395446777,
+            "cayley_lift_top5": 0.0
+          },
+          "23": {
+            "wht_cosine": 0.9859534502029419,
+            "wht_top5": 1.0,
+            "cayley_cosine": 0.9924328923225403,
+            "cayley_top5": 0.9980430603027344,
+            "cayley_lift_cosine": 0.006479442119598389,
+            "cayley_lift_top5": -0.001956939697265625
+          },
+          "35": {
+            "wht_cosine": 0.9860180616378784,
+            "wht_top5": 0.9921721816062927,
+            "cayley_cosine": 0.9934819936752319,
+            "cayley_top5": 0.9980430603027344,
+            "cayley_lift_cosine": 0.007463932037353516,
+            "cayley_lift_top5": 0.00587087869644165
+          }
+        },
+        "seed_2024": {
+          "0": {
+            "wht_cosine": 0.6300618648529053,
+            "wht_top5": 0.816046953201294,
+            "cayley_cosine": 0.7904084324836731,
+            "cayley_top5": 0.9060665369033813,
+            "cayley_lift_cosine": 0.16034656763076782,
+            "cayley_lift_top5": 0.0900195837020874
+          },
+          "7": {
+            "wht_cosine": 0.9961792230606079,
+            "wht_top5": 1.0,
+            "cayley_cosine": 0.9987253546714783,
+            "cayley_top5": 0.9980430603027344,
+            "cayley_lift_cosine": 0.0025461316108703613,
+            "cayley_lift_top5": -0.001956939697265625
+          },
+          "15": {
+            "wht_cosine": 0.9886853098869324,
+            "wht_top5": 1.0,
+            "cayley_cosine": 0.9938707947731018,
+            "cayley_top5": 1.0,
+            "cayley_lift_cosine": 0.005185484886169434,
+            "cayley_lift_top5": 0.0
+          },
+          "23": {
+            "wht_cosine": 0.9879147410392761,
+            "wht_top5": 0.9980430603027344,
+            "cayley_cosine": 0.9930235743522644,
+            "cayley_top5": 0.9980430603027344,
+            "cayley_lift_cosine": 0.005108833312988281,
+            "cayley_lift_top5": 0.0
+          },
+          "35": {
+            "wht_cosine": 0.9902944564819336,
+            "wht_top5": 1.0,
+            "cayley_cosine": 0.9938879609107971,
+            "cayley_top5": 1.0,
+            "cayley_lift_cosine": 0.0035935044288635254,
+            "cayley_lift_top5": 0.0
+          }
+        }
+      },
+      "summary": {
+        "wht_cosine": {
+          "mean": 0.9211979230244954,
+          "std": 0.1393883537184745,
+          "min": 0.6300618648529053,
+          "max": 0.9970047473907471
+        },
+        "wht_top5": {
+          "mean": 0.9636007785797119,
+          "std": 0.07130309621740123,
+          "min": 0.8140900135040283,
+          "max": 1.0
+        },
+        "cayley_cosine": {
+          "mean": 0.9527991612752279,
+          "std": 0.08444325771336111,
+          "min": 0.7706941366195679,
+          "max": 0.9987253546714783
+        },
+        "cayley_top5": {
+          "mean": 0.9795172890027364,
+          "std": 0.039842768756327945,
+          "min": 0.888454020023346,
+          "max": 1.0
+        },
+        "cayley_lift_cosine": {
+          "mean": 0.031601238250732425,
+          "std": 0.05603683751422764,
+          "min": 0.001628279685974121,
+          "max": 0.16034656763076782
+        },
+        "cayley_lift_top5": {
+          "mean": 0.015916510423024496,
+          "std": 0.03246305170683444,
+          "min": -0.001956939697265625,
+          "max": 0.09197652339935303
+        }
+      }
+    },
+    "14B": {
+      "per_seed": {
+        "seed_42": {
+          "0": {
+            "wht_cosine": 0.9432260990142822,
+            "wht_top5": 0.980430543422699,
+            "cayley_cosine": 0.960361659526825,
+            "cayley_top5": 0.9980430603027344,
+            "cayley_lift_cosine": 0.017135560512542725,
+            "cayley_lift_top5": 0.0176125168800354
+          },
+          "10": {
+            "wht_cosine": 0.9982795119285583,
+            "wht_top5": 1.0,
+            "cayley_cosine": 0.9989328384399414,
+            "cayley_top5": 1.0,
+            "cayley_lift_cosine": 0.0006533265113830566,
+            "cayley_lift_top5": 0.0
+          },
+          "20": {
+            "wht_cosine": 0.997207760810852,
+            "wht_top5": 1.0,
+            "cayley_cosine": 0.9984022378921509,
+            "cayley_top5": 1.0,
+            "cayley_lift_cosine": 0.0011944770812988281,
+            "cayley_lift_top5": 0.0
+          },
+          "30": {
+            "wht_cosine": 0.9853609204292297,
+            "wht_top5": 1.0,
+            "cayley_cosine": 0.9930660724639893,
+            "cayley_top5": 1.0,
+            "cayley_lift_cosine": 0.0077051520347595215,
+            "cayley_lift_top5": 0.0
+          },
+          "47": {
+            "wht_cosine": 0.9907559752464294,
+            "wht_top5": 1.0,
+            "cayley_cosine": 0.9950077533721924,
+            "cayley_top5": 1.0,
+            "cayley_lift_cosine": 0.0042517781257629395,
+            "cayley_lift_top5": 0.0
+          }
+        },
+        "seed_137": {
+          "0": {
+            "wht_cosine": 0.9446863532066345,
+            "wht_top5": 0.9784735441207886,
+            "cayley_cosine": 0.9579642415046692,
+            "cayley_top5": 0.9882583022117615,
+            "cayley_lift_cosine": 0.013277888298034668,
+            "cayley_lift_top5": 0.0097847580909729
+          },
+          "10": {
+            "wht_cosine": 0.9989380240440369,
+            "wht_top5": 1.0,
+            "cayley_cosine": 0.9990730881690979,
+            "cayley_top5": 1.0,
+            "cayley_lift_cosine": 0.00013506412506103516,
+            "cayley_lift_top5": 0.0
+          },
+          "20": {
+            "wht_cosine": 0.9959459900856018,
+            "wht_top5": 1.0,
+            "cayley_cosine": 0.9980398416519165,
+            "cayley_top5": 1.0,
+            "cayley_lift_cosine": 0.0020938515663146973,
+            "cayley_lift_top5": 0.0
+          },
+          "30": {
+            "wht_cosine": 0.9853798747062683,
+            "wht_top5": 1.0,
+            "cayley_cosine": 0.9934926629066467,
+            "cayley_top5": 1.0,
+            "cayley_lift_cosine": 0.008112788200378418,
+            "cayley_lift_top5": 0.0
+          },
+          "47": {
+            "wht_cosine": 0.9907121062278748,
+            "wht_top5": 0.9980430603027344,
+            "cayley_cosine": 0.9955984354019165,
+            "cayley_top5": 1.0,
+            "cayley_lift_cosine": 0.004886329174041748,
+            "cayley_lift_top5": 0.001956939697265625
+          }
+        },
+        "seed_2024": {
+          "0": {
+            "wht_cosine": 0.9443430304527283,
+            "wht_top5": 0.9843444228172302,
+            "cayley_cosine": 0.9651955366134644,
+            "cayley_top5": 0.9941291809082031,
+            "cayley_lift_cosine": 0.020852506160736084,
+            "cayley_lift_top5": 0.0097847580909729
+          },
+          "10": {
+            "wht_cosine": 0.9980779886245728,
+            "wht_top5": 1.0,
+            "cayley_cosine": 0.9992629289627075,
+            "cayley_top5": 1.0,
+            "cayley_lift_cosine": 0.0011849403381347656,
+            "cayley_lift_top5": 0.0
+          },
+          "20": {
+            "wht_cosine": 0.9961259961128235,
+            "wht_top5": 1.0,
+            "cayley_cosine": 0.998683750629425,
+            "cayley_top5": 1.0,
+            "cayley_lift_cosine": 0.0025577545166015625,
+            "cayley_lift_top5": 0.0
+          },
+          "30": {
+            "wht_cosine": 0.9881588816642761,
+            "wht_top5": 1.0,
+            "cayley_cosine": 0.9926027655601501,
+            "cayley_top5": 1.0,
+            "cayley_lift_cosine": 0.0044438838958740234,
+            "cayley_lift_top5": 0.0
+          },
+          "47": {
+            "wht_cosine": 0.9895378947257996,
+            "wht_top5": 1.0,
+            "cayley_cosine": 0.9948649406433105,
+            "cayley_top5": 1.0,
+            "cayley_lift_cosine": 0.005327045917510986,
+            "cayley_lift_top5": 0.0
+          }
+        }
+      },
+      "summary": {
+        "wht_cosine": {
+          "mean": 0.9831157604853312,
+          "std": 0.020001445556072528,
+          "min": 0.9432260990142822,
+          "max": 0.9989380240440369
+        },
+        "wht_top5": {
+          "mean": 0.9960861047108968,
+          "std": 0.00759605159866598,
+          "min": 0.9784735441207886,
+          "max": 1.0
+        },
+        "cayley_cosine": {
+          "mean": 0.9893699169158936,
+          "std": 0.014331902758263057,
+          "min": 0.9579642415046692,
+          "max": 0.9992629289627075
+        },
+        "cayley_top5": {
+          "mean": 0.9986953695615133,
+          "std": 0.0031689397598384534,
+          "min": 0.9882583022117615,
+          "max": 1.0
+        },
+        "cayley_lift_cosine": {
+          "mean": 0.006254156430562337,
+          "std": 0.006041567054589469,
+          "min": 0.00013506412506103516,
+          "max": 0.020852506160736084
+        },
+        "cayley_lift_top5": {
+          "mean": 0.002609264850616455,
+          "std": 0.005185810124535656,
+          "min": 0.0,
+          "max": 0.0176125168800354
+        }
+      }
+    }
+  },
+  "cayley_transfer": {
+    "0": {
+      "in_dist_cosine": 0.7706941366195679,
+      "out_dist_cosine": 0.9396950602531433,
+      "wht_baseline_14b": 0.9432260990142822,
+      "transfer_degradation": -0.16900092363357544,
+      "beats_wht_on_14b": false
+    },
+    "1": {
+      "in_dist_cosine": 0.9319099187850952,
+      "out_dist_cosine": 0.9802149534225464,
+      "wht_baseline_14b": 0.9786361455917358,
+      "transfer_degradation": -0.04830503463745117,
+      "beats_wht_on_14b": true
+    },
+    "2": {
+      "in_dist_cosine": 0.9392708539962769,
+      "out_dist_cosine": 0.9184446930885315,
+      "wht_baseline_14b": 0.9163721799850464,
+      "transfer_degradation": 0.02082616090774536,
+      "beats_wht_on_14b": true
+    },
+    "3": {
+      "in_dist_cosine": 0.9997236728668213,
+      "out_dist_cosine": 0.9410704970359802,
+      "wht_baseline_14b": 0.947516918182373,
+      "transfer_degradation": 0.058653175830841064,
+      "beats_wht_on_14b": false
+    },
+    "4": {
+      "in_dist_cosine": 0.9999779462814331,
+      "out_dist_cosine": 0.9791593551635742,
+      "wht_baseline_14b": 0.9770386815071106,
+      "transfer_degradation": 0.020818591117858887,
+      "beats_wht_on_14b": true
+    }
+  },
+  "seq_length": {
+    "128": {
+      "actual_tokens": 128,
+      "n_keys": 127,
+      "layer": 17,
+      "wht_cosine": 0.9952629208564758,
+      "wht_top5": 1.0,
+      "cayley_cosine": 0.9981710910797119,
+      "cayley_top5": 1.0,
+      "ea_spearman": 0.1636025965504312,
+      "distill_cosine": 0.9383744597434998
+    },
+    "256": {
+      "actual_tokens": 256,
+      "n_keys": 255,
+      "layer": 17,
+      "wht_cosine": 0.991905927658081,
+      "wht_top5": 0.9960784912109375,
+      "cayley_cosine": 0.9967604279518127,
+      "cayley_top5": 1.0,
+      "ea_spearman": 0.37272391732283466,
+      "distill_cosine": 0.9501636624336243
+    },
+    "512": {
+      "actual_tokens": 512,
+      "n_keys": 511,
+      "layer": 17,
+      "wht_cosine": 0.989305317401886,
+      "wht_top5": 1.0,
+      "cayley_cosine": 0.9940357804298401,
+      "cayley_top5": 1.0,
+      "ea_spearman": 0.22290752345458723,
+      "distill_cosine": 0.9553779363632202
+    },
+    "1024": {
+      "actual_tokens": 724,
+      "n_keys": 723,
+      "layer": 17,
+      "wht_cosine": 0.985334038734436,
+      "wht_top5": 1.0,
+      "cayley_cosine": 0.9906740784645081,
+      "cayley_top5": 1.0,
+      "ea_spearman": 0.14588795289772816,
+      "distill_cosine": 0.9596282839775085
+    },
+    "2048": {
+      "actual_tokens": 724,
+      "n_keys": 723,
+      "layer": 17,
+      "wht_cosine": 0.985334038734436,
+      "wht_top5": 1.0,
+      "cayley_cosine": 0.9906740784645081,
+      "cayley_top5": 1.0,
+      "ea_spearman": 0.14588795289772816,
+      "distill_cosine": 0.9596282839775085
+    }
+  },
+  "prompt_diversity": {
+    "code": {
+      "0": {
+        "wht_cosine": 0.6392179131507874,
+        "wht_top5": 0.7827788591384888,
+        "cayley_cosine": 0.7982403635978699,
+        "cayley_top5": 0.8923678994178772
+      },
+      "17": {
+        "wht_cosine": 0.9862554669380188,
+        "wht_top5": 1.0,
+        "cayley_cosine": 0.9935163855552673,
+        "cayley_top5": 1.0
+      },
+      "35": {
+        "wht_cosine": 0.9698678851127625,
+        "wht_top5": 0.9941291809082031,
+        "cayley_cosine": 0.9854083061218262,
+        "cayley_top5": 1.0
+      }
+    },
+    "math": {
+      "0": {
+        "wht_cosine": 0.5690473318099976,
+        "wht_top5": 0.8062622547149658,
+        "cayley_cosine": 0.8246699571609497,
+        "cayley_top5": 0.927592933177948
+      },
+      "17": {
+        "wht_cosine": 0.9799606204032898,
+        "wht_top5": 1.0,
+        "cayley_cosine": 0.987136960029602,
+        "cayley_top5": 1.0
+      },
+      "35": {
+        "wht_cosine": 0.9570096135139465,
+        "wht_top5": 0.976516604423523,
+        "cayley_cosine": 0.9718055725097656,
+        "cayley_top5": 0.9960861206054688
+      }
+    },
+    "creative": {
+      "0": {
+        "wht_cosine": 0.5800201892852783,
+        "wht_top5": 0.8003913760185242,
+        "cayley_cosine": 0.7870211005210876,
+        "cayley_top5": 0.9001957178115845
+      },
+      "17": {
+        "wht_cosine": 0.9895344376564026,
+        "wht_top5": 1.0,
+        "cayley_cosine": 0.9942347407341003,
+        "cayley_top5": 1.0
+      },
+      "35": {
+        "wht_cosine": 0.9904817938804626,
+        "wht_top5": 1.0,
+        "cayley_cosine": 0.9937363266944885,
+        "cayley_top5": 0.9980430603027344
+      }
+    },
+    "factual": {
+      "0": {
+        "wht_cosine": 0.6651814579963684,
+        "wht_top5": 0.8140900135040283,
+        "cayley_cosine": 0.7706941366195679,
+        "cayley_top5": 0.9060665369033813
+      },
+      "17": {
+        "wht_cosine": 0.989305317401886,
+        "wht_top5": 1.0,
+        "cayley_cosine": 0.9940357804298401,
+        "cayley_top5": 1.0
+      },
+      "35": {
+        "wht_cosine": 0.9882557988166809,
+        "wht_top5": 1.0,
+        "cayley_cosine": 0.9945406317710876,
+        "cayley_top5": 1.0
+      }
+    },
+    "adversarial": {
+      "0": {
+        "wht_cosine": 0.523557186126709,
+        "wht_top5": 0.7064579129219055,
+        "cayley_cosine": 0.6589133143424988,
+        "cayley_top5": 0.8121330738067627
+      },
+      "17": {
+        "wht_cosine": 0.984499454498291,
+        "wht_top5": 0.9980430603027344,
+        "cayley_cosine": 0.9922816753387451,
+        "cayley_top5": 1.0
+      },
+      "35": {
+        "wht_cosine": 0.9827197790145874,
+        "wht_top5": 0.980430543422699,
+        "cayley_cosine": 0.9907976984977722,
+        "cayley_top5": 0.9843444228172302
+      }
+    }
+  },
+  "ea_failure_modes": {
+    "power_law": {
+      "spearman": 0.8655863045170002
+    },
+    "uniform": {
+      "spearman": 0.08337818228033647
+    },
+    "distribution_shift": {
+      "spearman": -0.03488512233780799
+    },
+    "cold_start": {
+      "spearman": 0.4270413118984676
+    }
+  },
+  "mean_removal": {
+    "code": {
+      "with_center_cosine": 0.9862554669380188,
+      "without_center_cosine": 0.97557532787323,
+      "diff": 0.010680139064788818,
+      "hurts": false
+    },
+    "math": {
+      "with_center_cosine": 0.9799606204032898,
+      "without_center_cosine": 0.9518800377845764,
+      "diff": 0.02808058261871338,
+      "hurts": false
+    },
+    "creative": {
+      "with_center_cosine": 0.9895344376564026,
+      "without_center_cosine": 0.9802377223968506,
+      "diff": 0.009296715259552002,
+      "hurts": false
+    },
+    "factual": {
+      "with_center_cosine": 0.989305317401886,
+      "without_center_cosine": 0.9844686985015869,
+      "diff": 0.004836618900299072,
+      "hurts": false
+    },
+    "adversarial": {
+      "with_center_cosine": 0.984499454498291,
+      "without_center_cosine": 0.9720198512077332,
+      "diff": 0.012479603290557861,
+      "hurts": false
+    }
+  },
+  "triple_stack_limits": {
+    "2x distill only": {
+      "n_original": 723,
+      "n_after_evict": 723,
+      "n_distilled": 361,
+      "actual_compression": 10.013850415512467,
+      "output_cosine": 0.976536214351654,
+      "is_garbage": false
+    },
+    "30% evict + 2x distill": {
+      "n_original": 723,
+      "n_after_evict": 514,
+      "n_distilled": 257,
+      "actual_compression": 14.06614785992218,
+      "output_cosine": 0.9376755952835083,
+      "is_garbage": false
+    },
+    "50% evict + 4x distill": {
+      "n_original": 723,
+      "n_after_evict": 369,
+      "n_distilled": 92,
+      "actual_compression": 39.29347826086956,
+      "output_cosine": 0.8912632465362549,
+      "is_garbage": false
+    },
+    "70% evict + 4x distill": {
+      "n_original": 723,
+      "n_after_evict": 224,
+      "n_distilled": 56,
+      "actual_compression": 64.55357142857143,
+      "output_cosine": 0.8550358414649963,
+      "is_garbage": false
+    },
+    "80% evict + 4x distill": {
+      "n_original": 723,
+      "n_after_evict": 152,
+      "n_distilled": 38,
+      "actual_compression": 95.13157894736842,
+      "output_cosine": 0.8273016214370728,
+      "is_garbage": false
+    },
+    "90% evict + 4x distill": {
+      "n_original": 723,
+      "n_after_evict": 80,
+      "n_distilled": 20,
+      "actual_compression": 180.75,
+      "output_cosine": 0.7623633742332458,
+      "is_garbage": true
+    },
+    "50% evict + 8x distill": {
+      "n_original": 723,
+      "n_after_evict": 369,
+      "n_distilled": 46,
+      "actual_compression": 78.58695652173913,
+      "output_cosine": 0.8697795271873474,
+      "is_garbage": false
+    },
+    "70% evict + 8x distill": {
+      "n_original": 723,
+      "n_after_evict": 224,
+      "n_distilled": 28,
+      "actual_compression": 129.10714285714286,
+      "output_cosine": 0.8341535925865173,
+      "is_garbage": false
+    }
+  },
+  "generation": {
+    "fp16": {
+      "n_tokens": 200,
+      "perplexity": 1.0870764355104492,
+      "text_preview": " To prove that \\(\\sqrt{2}\\) is irrational, we will use a proof by contradiction. We start by assuming that \\(\\sqrt{2}\\) is rational, i.e., there exist coprime integers \\(p\\) and \\(q\\) such that \\(\\sqrt{2} = \\frac{p}{q}\\). This implies:\n\n\\[\n2 = \\frac{p^2}{q^2}\n\\]\n\nMultiplying both sides by \\(q^2\\), we get:\n\n\\[\n2q^2 = p^2\n\\]\n\nThis equation tells us that \\(p^2\\) is an even number because it is equal to \\(2q^2\\). Since \\(p^2\\) is even, \\(p\\) must also be even (the square of an odd number is always o"
+    },
+    "layer_quantization": {
+      "0": {
+        "mse": 0.053708095103502274,
+        "vector_cosine": 0.9998462796211243,
+        "n_tokens": 53
+      },
+      "9": {
+        "mse": 0.038376495242118835,
+        "vector_cosine": 0.9800980687141418,
+        "n_tokens": 53
+      },
+      "18": {
+        "mse": 0.04037284106016159,
+        "vector_cosine": 0.9947594404220581,
+        "n_tokens": 53
+      },
+      "27": {
+        "mse": 0.041562531143426895,
+        "vector_cosine": 0.9894114136695862,
+        "n_tokens": 53
+      },
+      "35": {
+        "mse": 0.025060931220650673,
+        "vector_cosine": 0.9944120049476624,
+        "n_tokens": 53
+      }
+    }
+  },
+  "reproducibility": {
+    "wht_mean_removal": {
+      "seeds": [
+        {
+          "seed": 42,
+          "cosine_sim": 0.989305317401886,
+          "top5_match": 1.0,
+          "kl_div": 0.03193539381027222
+        },
+        {
+          "seed": 137,
+          "cosine_sim": 0.9895793199539185,
+          "top5_match": 1.0,
+          "kl_div": 0.03128033131361008
+        },
+        {
+          "seed": 2024,
+          "cosine_sim": 0.9897316694259644,
+          "top5_match": 1.0,
+          "kl_div": 0.030145414173603058
+        }
+      ],
+      "cosine_mean": 0.9895387689272562,
+      "cosine_std": 0.00017640351740909032,
+      "top5_mean": 1.0,
+      "top5_std": 0.0,
+      "reliable": true
+    },
+    "cayley_100step": {
+      "seeds": [
+        {
+          "seed": 42,
+          "cosine_sim": 0.9940357804298401,
+          "top5_match": 1.0,
+          "kl_div": 0.01819349266588688
+        },
+        {
+          "seed": 137,
+          "cosine_sim": 0.994651198387146,
+          "top5_match": 1.0,
+          "kl_div": 0.016517743468284607
+        },
+        {
+          "seed": 2024,
+          "cosine_sim": 0.9953765869140625,
+          "top5_match": 1.0,
+          "kl_div": 0.016824796795845032
+        }
+      ],
+      "cosine_mean": 0.9946878552436829,
+      "cosine_std": 0.0005479953168179388,
+      "top5_mean": 1.0,
+      "top5_std": 0.0,
+      "reliable": true
+    },
+    "cayley_200step": {
+      "seeds": [
+        {
+          "seed": 42,
+          "cosine_sim": 0.9948220252990723,
+          "top5_match": 1.0,
+          "kl_div": 0.01649181917309761
+        },
+        {
+          "seed": 137,
+          "cosine_sim": 0.995638370513916,
+          "top5_match": 1.0,
+          "kl_div": 0.013942421413958073
+        },
+        {
+          "seed": 2024,
+          "cosine_sim": 0.9953725337982178,
+          "top5_match": 1.0,
+          "kl_div": 0.014501841738820076
+        }
+      ],
+      "cosine_mean": 0.9952776432037354,
+      "cosine_std": 0.00033995886627697833,
+      "top5_mean": 1.0,
+      "top5_std": 0.0,
+      "reliable": true
+    }
+  },
+  "14b_comprehensive": {
+    "factual": {
+      "0": {
+        "wht_cosine": 0.9432260990142822,
+        "wht_top5": 0.980430543422699,
+        "polarquant_cosine": 0.39812222123146057,
+        "polarquant_top5": 0.4187867045402527
+      },
+      "10": {
+        "wht_cosine": 0.9982795119285583,
+        "wht_top5": 1.0,
+        "polarquant_cosine": 0.9970790147781372,
+        "polarquant_top5": 1.0
+      },
+      "20": {
+        "wht_cosine": 0.997207760810852,
+        "wht_top5": 1.0,
+        "polarquant_cosine": 0.9907525181770325,
+        "polarquant_top5": 1.0
+      },
+      "30": {
+        "wht_cosine": 0.9853609204292297,
+        "wht_top5": 1.0,
+        "polarquant_cosine": 0.9780229330062866,
+        "polarquant_top5": 1.0
+      },
+      "47": {
+        "wht_cosine": 0.9907559752464294,
+        "wht_top5": 1.0,
+        "polarquant_cosine": 0.955155611038208,
+        "polarquant_top5": 0.9823874831199646
+      }
+    },
+    "code": {
+      "0": {
+        "wht_cosine": 0.9476885199546814,
+        "wht_top5": 0.9745596647262573,
+        "polarquant_cosine": 0.5221550464630127,
+        "polarquant_top5": 0.5518590807914734
+      },
+      "10": {
+        "wht_cosine": 0.9978711605072021,
+        "wht_top5": 1.0,
+        "polarquant_cosine": 0.9964519143104553,
+        "polarquant_top5": 1.0
+      },
+      "20": {
+        "wht_cosine": 0.997052013874054,
+        "wht_top5": 1.0,
+        "polarquant_cosine": 0.9934084415435791,
+        "polarquant_top5": 1.0
+      },
+      "30": {
+        "wht_cosine": 0.9806458950042725,
+        "wht_top5": 1.0,
+        "polarquant_cosine": 0.9617567658424377,
+        "polarquant_top5": 0.9980430603027344
+      },
+      "47": {
+        "wht_cosine": 0.9872748851776123,
+        "wht_top5": 1.0,
+        "polarquant_cosine": 0.9198974370956421,
+        "polarquant_top5": 0.9921721816062927
+      }
+    },
+    "adversarial": {
+      "0": {
+        "wht_cosine": 0.9362841844558716,
+        "wht_top5": 0.9549902081489563,
+        "polarquant_cosine": 0.3517460525035858,
+        "polarquant_top5": 0.38160470128059387
+      },
+      "10": {
+        "wht_cosine": 0.9982935190200806,
+        "wht_top5": 1.0,
+        "polarquant_cosine": 0.9952768683433533,
+        "polarquant_top5": 1.0
+      },
+      "20": {
+        "wht_cosine": 0.9968403577804565,
+        "wht_top5": 1.0,
+        "polarquant_cosine": 0.9937288761138916,
+        "polarquant_top5": 1.0
+      },
+      "30": {
+        "wht_cosine": 0.9839289784431458,
+        "wht_top5": 0.9980430603027344,
+        "polarquant_cosine": 0.9622507095336914,
+        "polarquant_top5": 0.9980430603027344
+      },
+      "47": {
+        "wht_cosine": 0.9842582941055298,
+        "wht_top5": 1.0,
+        "polarquant_cosine": 0.9220542311668396,
+        "polarquant_top5": 0.9667319059371948
+      }
+    }
+  }
+}
