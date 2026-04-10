@@ -162,7 +162,8 @@ def monkey_patch_qwen2(model):
         layer.self_attn.__class__ = FAISSQwen2Attention
 
 
-def run_test(model, tokenizer, target_tokens: int, results: list):
+def run_test(model, tokenizer, target_tokens: int, results: list,
+             prefill_only: bool = False, gen_tokens: int = 50):
     """Run a single needle-in-haystack test at given token count."""
     print(f"\n{'='*70}")
     print(f"  TESTING: {target_tokens:,} tokens")
@@ -265,6 +266,36 @@ def run_test(model, tokenizer, target_tokens: int, results: list):
     del inputs, context_text, prompt
     gc.collect()
 
+    if prefill_only:
+        del last_output
+        gen_time = 0
+        gen_speed = 0
+        generated_tokens = []
+        answer = "PREFILL_ONLY"
+        needle_found = False
+        print(f"  Skipping generation (prefill-only mode)")
+        result = {
+            "target_tokens": target_tokens,
+            "actual_tokens": total_tokens_actual,
+            "needle_found": needle_found,
+            "answer": answer,
+            "prefill_time_s": round(prefill_time, 2),
+            "prefill_speed_tok_s": round(prefill_speed, 0),
+            "gen_time_s": 0,
+            "gen_speed_tok_s": 0,
+            "vram_before_gb": round(alloc_before, 2),
+            "vram_after_gb": round(alloc_after, 2),
+            "vram_delta_gb": round(alloc_after - alloc_before, 2),
+            "ram_before_gb": round(ram_before, 2),
+            "ram_after_gb": round(ram_after, 2),
+            "ram_delta_gb": round(ram_after - ram_before, 2),
+        }
+        results.append(result)
+        del cache
+        torch.cuda.empty_cache()
+        gc.collect()
+        return result
+
     # Generation
     print(f"  Generating response...")
 
@@ -281,7 +312,7 @@ def run_test(model, tokenizer, target_tokens: int, results: list):
     t_start = time.time()
 
     with torch.no_grad():
-        for _ in range(49):  # already have 1 token
+        for _ in range(gen_tokens - 1):  # already have 1 token
             outputs = model(
                 input_ids=current_ids,
                 position_ids=position_ids,
@@ -340,6 +371,8 @@ def main():
     parser.add_argument("--model", default="Qwen/Qwen2.5-3B-Instruct")
     parser.add_argument("--scales", nargs="+", type=int, default=[2000, 8000, 32000, 100000])
     parser.add_argument("--max-only", type=int, default=None, help="Only run one test at this scale")
+    parser.add_argument("--prefill-only", action="store_true", help="Skip generation, only measure prefill")
+    parser.add_argument("--gen-tokens", type=int, default=50, help="Max tokens to generate")
     args = parser.parse_args()
 
     scales = [args.max_only] if args.max_only else args.scales
@@ -373,7 +406,9 @@ def main():
 
     for scale in scales:
         try:
-            result = run_test(model, tokenizer, scale, results)
+            result = run_test(model, tokenizer, scale, results,
+                              prefill_only=args.prefill_only,
+                              gen_tokens=args.gen_tokens)
         except Exception as e:
             print(f"  FAILED at {scale:,} tokens: {e}")
             import traceback

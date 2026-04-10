@@ -91,6 +91,7 @@ from .temporal_decay import TemporalDecayCache
 GENERATION_PRESETS = GenerationCache.PRESETS
 from .adaptive_bits import AdaptiveBitsCache, ImportanceScorer
 from .adaptive_generation_cache import AdaptiveGenerationCache
+from .expected_attention import ExpectedAttentionScorer, ExpectedAttentionCache
 from .attention_optimal import MeanRemovedQuantizer
 from .channel_adaptive import (
     ChannelAdaptiveCache,
@@ -368,6 +369,9 @@ __all__ = [
     # v0.3.0: Adaptive Bit Allocation
     "AdaptiveBitsCache",
     "ImportanceScorer",
+    # v0.3.0: Expected Attention Pruning
+    "ExpectedAttentionScorer",
+    "ExpectedAttentionCache",
     # v0.3.0: DeltaQuant (cross-token delta coding)
     "DeltaQuantEncoder",
     # v0.3.0: PCA-Adaptive Rotation
