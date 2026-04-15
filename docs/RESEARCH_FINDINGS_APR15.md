@@ -84,7 +84,8 @@ Tested on Qwen2.5-3B (36 layers, d=128, 512 tokens):
 - Algorithm: Conway-Sloane two-coset nearest E8 point, O(1) per 8D block, no calibration
 - Implementation: turboquantdc/e8_lattice.py (~180 lines)
 - Pipeline: mean-remove → normalize → WHT rotate → E8 quantize per 8D block → inverse
-- Generation quality: 67.6% exact token match vs FP16 (vs 13.2% for scalar WHT+Mean)
+- Generation quality: 72.0% exact token match vs FP16 across 5 prompts (vs 52.0% for scalar WHT+Mean)
+- Two prompts achieve 100% token match (identical to FP16 output)
 - 2-bit E8 also viable: +1.3% PPL on 3B, +3.5% on 7B (scalar 2-bit is +22-29%)
 - 14B results: +1.5% at 3-bit, +0.5% at 4-bit
 - Entropy: E8 coords have 5.05 bits/dim entropy. Need QuIP# E8P encoding (2 bits/dim) for memory win
