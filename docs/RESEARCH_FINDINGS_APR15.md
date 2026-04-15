@@ -101,6 +101,16 @@ Tested on Qwen2.5-3B (36 layers, d=128, 512 tokens):
 
 Note: E8 4-bit on 7B actually **beats FP16 by 0.1%** — slight regularization effect.
 
+### E8 Publishability Assessment
+
+**Conditional GO** for publication:
+- **Blockers**: (1) E8P encoding (actual compression, not just quality), (2) Llama model results
+- **Competition**: NestQuant (ICML 2025, Gosset lattice on KV), NexusQuant blog (Apr 7 2026, E8 for KV, unpublished)
+- **Differentiator**: calibration-free + WHT + mean-removal pipeline, 3-model empirical validation
+- **Venue**: arXiv technical report → NeurIPS 2026 workshop
+- **Timeline**: post arXiv within 2 weeks, need Llama results + E8P encoding
+- **E8P encoding feasibility**: 65,536 unique 8D lattice points at 3-bit scale = exactly 2^16 = 16 bits/block = 2 bits/dim = 7.5x compression
+
 ### AQUA-KV Cross-Layer Prediction (Prototype Result)
 
 - Per-layer MSE: 78% improvement when predicting K[l] from K[l-1] + E8 on residual

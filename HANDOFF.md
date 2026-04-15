@@ -69,6 +69,8 @@ This fixes the root cause of why TurboQuant 3-bit catastrophically fails on Qwen
 6. INVESTIGATE llama.cpp K dequantize flash attention bug — could be a major contribution
 7. UPDATE Tom follow-up with the K quantization finding (all sub-8-bit K fails, not just turbo3)
 8. **PROPOSE** mean-removal as standard preprocessing to RotorQuant repo (scrya-com/rotorquant Issue or PR)
+9. **PUBLISH** E8 lattice VQ arXiv report — need: (a) E8P encoding for actual compression, (b) Llama-3.1-8B results, (c) speed benchmarks. Target: arXiv in 2 weeks, NeurIPS 2026 workshop
+10. **COMPETE** against NestQuant (ICML 2025, Gosset lattice on KV) — our differentiator: calibration-free + WHT + mean-removal
 
 ## Strategic Direction
 
