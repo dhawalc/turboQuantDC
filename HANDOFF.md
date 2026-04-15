@@ -1,4 +1,4 @@
-# TurboQuantDC — Handoff (Updated April 13, 2026)
+# TurboQuantDC — Handoff (Updated April 15, 2026)
 
 ## The One Thing That Matters
 
@@ -27,6 +27,13 @@ This fixes the root cause of why TurboQuant 3-bit catastrophically fails on Qwen
 | Asymptotic law: Gini ~ 0.09*ln(n) | R²=0.989 | PROVEN, novel |
 | KVSculpt distillation | 0.999 cosine pre-quant | PROVEN |
 | Triple stack | 37.9x at 0.93 cosine | PROVEN (honest number) |
+| WHT beats all rotations on PPL (3 models) | 5.54/9.06/11.87 vs best RQ 18.39/83.92/49.85 | PROVEN, 3B/7B/14B |
+| Mean-removal critical for low KV heads | 7B: 13,225→9.06 (2-4 heads), 14B: neutral (8 heads) | PROVEN, KV-head dependent |
+| Mean-removal HURTS block rotations on 14B | IsoQuant 18.39→30.87 with mean (+68%) | PROVEN, unexpected |
+| Attn cosine sim misleads on PPL | worst attn cos → best PPL across all models | PROVEN, counterintuitive |
+| **E8 lattice VQ** (new technique) | **PPL +0.1% on 3B, +0.8% on 7B** at 3-bit | **PROVEN, near-lossless** |
+| E8 vs scalar Lloyd-Max MSE | 86-89% lower MSE at same bit rate | PROVEN on synthetic+real |
+| **E8 2-bit viable** | PPL +1.3% (3B), +3.5% (7B) at 8x compression | PROVEN (scalar 2-bit is +22-29%) |
 
 ## What's Overstated (Corrected)
 
@@ -55,11 +62,13 @@ This fixes the root cause of why TurboQuant 3-bit catastrophically fails on Qwen
 ## Immediate Next Actions
 
 1. POST ~/Downloads/TOM_FOLLOWUP.txt with PPL + NIAH numbers
-2. GET HF token for Llama 3.1 8B — run same PPL benchmark
-3. ENTER Gemma 4 Good hackathon (deadline May 18, $200K) — build an APPLICATION
-4. SUBMIT asymptotic law paper (docs/ASYMPTOTIC_LAW_REPORT.md) to arxiv/ICML workshop
-5. INVESTIGATE llama.cpp K dequantize flash attention bug — could be a major contribution
-6. UPDATE Tom follow-up with the K quantization finding (all sub-8-bit K fails, not just turbo3)
+2. **SHARE** RotorQuant comparison results (benchmarks/results/rotorquant_comprehensive.md) — mean-removal universality is publishable
+3. GET HF token for Llama 3.1 8B — run same PPL benchmark (verify on Llama where RotorQuant claims advantage)
+4. ~~ENTER Gemma 4 Good hackathon (deadline May 18, $200K)~~ — SKIPPED (unavailable)
+5. SUBMIT asymptotic law paper (docs/ASYMPTOTIC_LAW_REPORT.md) to arxiv/ICML workshop
+6. INVESTIGATE llama.cpp K dequantize flash attention bug — could be a major contribution
+7. UPDATE Tom follow-up with the K quantization finding (all sub-8-bit K fails, not just turbo3)
+8. **PROPOSE** mean-removal as standard preprocessing to RotorQuant repo (scrya-com/rotorquant Issue or PR)
 
 ## Strategic Direction
 
