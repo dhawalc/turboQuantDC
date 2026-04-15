@@ -97,3 +97,12 @@ Tested on Qwen2.5-3B (36 layers, d=128, 512 tokens):
 | 3B | 2 | +1.3% | **+0.1%** | — | +3.8% | baseline |
 | 7B | 4 | +3.5% | **+0.8%** | — | +7.5% | baseline |
 | 14B | 8 | — | **+1.5%** | **+0.5%** | +12.9% | baseline |
+
+### AQUA-KV Cross-Layer Prediction (Prototype Result)
+
+- Per-layer MSE: 78% improvement when predicting K[l] from K[l-1] + E8 on residual
+- Cross-layer R²: 75.8% average on Qwen2.5-3B (range 69-95% across layers)
+- **PPL: +11.2% (WORSE than E8 direct at +6.8%)** — error propagation kills gains
+- Root cause: insufficient calibration (1 sentence vs needed 256 x 8K sequences)
+- Needs full AQUA-KV pipeline: sequential training, RoPE-aware, reconstructed inputs
+- D4 lattice NOT worth implementing (only 54% of E8's improvement over scalar)
