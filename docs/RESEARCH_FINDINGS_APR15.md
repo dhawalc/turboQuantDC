@@ -90,6 +90,8 @@ Tested on Qwen2.5-3B (36 layers, d=128, 512 tokens):
 - 14B results: +1.5% at 3-bit, +0.5% at 4-bit
 - Entropy: E8 coords have 5.05 bits/dim entropy. Need QuIP# E8P encoding (2 bits/dim) for memory win
 - 22 unit tests passing
+- Speed: E8 adds <1ms even at 65K vectors. At 4K (typical), +0.089ms. WHT rotation dominates total time.
+- E8P lookup encoding: 800K unique points at 50K calibration → needs algebraic E8P (QuIP# style)
 
 ### Full E8 Results Table (Complete Matrix)
 
@@ -100,6 +102,16 @@ Tested on Qwen2.5-3B (36 layers, d=128, 512 tokens):
 | 14B | 8 | 4.94 | 5.22 (+5.6%) | **5.02 (+1.5%)** | **4.97 (+0.5%)** | 5.58 (+12.9%) |
 
 Note: E8 4-bit on 7B actually **beats FP16 by 0.1%** — slight regularization effect.
+
+### Mistral-7B (Non-Qwen Validation)
+
+| Bits | E8+WHT+Mean | Scalar WHT+Mean | FP16 |
+|------|-------------|-----------------|------|
+| 2 | 8.26 (+0.5%) | — | 8.22 |
+| 3 | **8.23 (+0.1%)** | 8.30 (+0.9%) | 8.22 |
+| 4 | **8.22 (-0.0%)** | — | 8.22 |
+
+E8 validated on Mistral architecture (32L, d=128, 8 KV heads GQA). Publication blocker removed.
 
 ### E8 Publishability Assessment
 

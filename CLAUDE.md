@@ -148,3 +148,13 @@ Key patterns to note (implement differently, but understand the math):
 4. Implement
 5. Validate against paper bounds
 6. Update PLAN.md and MEMORY.md
+
+## Review Discipline
+Another coding agent will review your output after completion.
+Do not hand-wave. State assumptions, verify results, and leave a clean trail of reasoning and changes.
+
+Before finishing:
+1. verify the result,
+2. list changed files,
+3. note assumptions,
+4. call out anything unverified or risky.
