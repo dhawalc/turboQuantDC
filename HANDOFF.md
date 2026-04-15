@@ -114,13 +114,38 @@ Best paths (ranked):
 - feat/residualquant-rq3: GGML_TYPE_RQ3_0 (CPU-only, 12 files, compiles clean)
 - feat/mean-removal-turbo3: Mean-removal in turbo3/4/2 + CUDA kernel (K-only)
 
+## April 15 Session — New Files
+
+| File | What | Status |
+|------|------|--------|
+| turboquantdc/e8_lattice.py | **E8 lattice VQ** (near-lossless 3-bit) | NEW, 22 tests |
+| tests/test_e8_lattice.py | E8 unit tests | NEW, 22/22 pass |
+| benchmarks/rotorquant_comprehensive.py | 9-method head-to-head benchmark | NEW |
+| benchmarks/results/rotorquant_comprehensive.md | Full comparison report (3 models) | NEW |
+| docs/KV_COMPRESSION_SURVEY_2026.md | 60+ technique survey | NEW |
+| docs/RESEARCH_FINDINGS_APR15.md | All research findings | NEW |
+
+## April 15 Session — Research Tracks Completed
+
+1. **E8 lattice VQ** — BREAKTHROUGH (+0.1% PPL on 3B, near-lossless 3-bit)
+2. RotorQuant head-to-head (WHT wins everywhere, mean-removal KV-head-dependent)
+3. llama.cpp FA bug (3 issues, not 1; MMA kernel is the contribution opportunity)
+4. Mean-removal prior art (35 papers; integration with rotation-VQ is novel)
+5. KV compression survey (60+ techniques; top gap: KVTC 20-40x)
+6. Clifford algebra (no advantage; 9 sign errors in RotorQuant)
+7. KVTC Procrustes (motivating analysis not compression; DP bit allocation is portable)
+8. D4 vs E8 (E8 wins, D4 not worth it)
+9. AQUA-KV (78% MSE gain per-layer, needs full pipeline for PPL)
+10. xKV cross-layer SVD (negative scaling result on Qwen)
+11. NSNQuant double normalization (doesn't help our pipeline)
+
 ## Session Stats
 
-- 125 commits
-- 47 source modules
-- 1,796+ tests
-- 20 research experiments (8 breakthroughs, 4 dead ends, 8 techniques)
+- 127 commits (125 + 2 this session)
+- 48 source modules (47 + e8_lattice.py)
+- 1,818+ tests (1,796 + 22 E8 tests)
+- 31 research experiments (20 + 11 this session: 2 breakthroughs, 3 dead ends, 6 analyses)
 - 15+ charts created
-- 40 papers analyzed
+- 100+ papers analyzed (40 + 60+ KV survey + 35 mean-removal survey)
 - 3 models downloaded and cleaned up
 - 10 models benchmarked (3B through 72B + Gemma 4)

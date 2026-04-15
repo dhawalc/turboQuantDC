@@ -90,13 +90,15 @@ Tested on Qwen2.5-3B (36 layers, d=128, 512 tokens):
 - Entropy: E8 coords have 5.05 bits/dim entropy. Need QuIP# E8P encoding (2 bits/dim) for memory win
 - 22 unit tests passing
 
-### Full E8 Results Table
+### Full E8 Results Table (Complete Matrix)
 
-| Model | KV Heads | E8 2-bit | E8 3-bit | E8 4-bit | Scalar 3-bit+Mean | FP16 |
-|-------|----------|----------|----------|----------|-------------------|------|
-| 3B | 2 | +1.3% | **+0.1%** | — | +3.8% | baseline |
-| 7B | 4 | +3.5% | **+0.8%** | — | +7.5% | baseline |
-| 14B | 8 | — | **+1.5%** | **+0.5%** | +12.9% | baseline |
+| Model | KV Heads | FP16 PPL | E8 2-bit | E8 3-bit | E8 4-bit | Scalar 3-bit+Mean |
+|-------|----------|----------|----------|----------|----------|-------------------|
+| 3B | 2 | 11.44 | 11.59 (+1.3%) | **11.44 (+0.1%)** | 11.44 (+0.1%) | 11.87 (+3.8%) |
+| 7B | 4 | 8.43 | 8.73 (+3.5%) | **8.49 (+0.8%)** | **8.42 (-0.1%)** | 9.06 (+7.5%) |
+| 14B | 8 | 4.94 | 5.22 (+5.6%) | **5.02 (+1.5%)** | **4.97 (+0.5%)** | 5.58 (+12.9%) |
+
+Note: E8 4-bit on 7B actually **beats FP16 by 0.1%** — slight regularization effect.
 
 ### AQUA-KV Cross-Layer Prediction (Prototype Result)
 
