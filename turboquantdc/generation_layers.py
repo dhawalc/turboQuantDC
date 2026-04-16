@@ -4,6 +4,7 @@ import torch
 
 from .block_rotation import GivensRotation, QuaternionRotation
 from .codebook import LloydMaxCodebook
+from .e8_lattice import E8Quantizer
 from .rotation import apply_wht_rotation, generate_qjl_matrix, generate_rotation_matrix, generate_wht_rotation
 
 _TRITON_AVAILABLE = False
@@ -62,6 +63,7 @@ class _CompressedLayer:
         rotation_type: str | None = None,
         use_triton: bool = _TRITON_AVAILABLE,
         center_before_quantize: bool = True,
+        quantizer_type: str = "lloyd_max",
     ):
         self.key_bits = key_bits
         self.val_bits = val_bits
@@ -70,6 +72,7 @@ class _CompressedLayer:
         self.use_norm_correction = use_norm_correction
         self.use_residual_quant = use_residual_quant
         self.center_before_quantize = center_before_quantize
+        self.quantizer_type = quantizer_type  # "lloyd_max" or "e8"
         # None = auto-select (WHT when d is power of 2, else QR)
         self._rotation_type_override = rotation_type
         self._use_triton = use_triton and _TRITON_AVAILABLE
@@ -167,6 +170,18 @@ class _CompressedLayer:
         self._key_codebook = LloydMaxCodebook(d=d, bits=self.key_bits).to(device)
         self._val_codebook = LloydMaxCodebook(d=d, bits=self.val_bits).to(device)
 
+        # E8 lattice quantizers (used when quantizer_type="e8")
+        self._key_e8: Optional[E8Quantizer] = None
+        self._val_e8: Optional[E8Quantizer] = None
+        if self.quantizer_type == "e8":
+            # E8 scale calibrated for post-WHT unit vector distribution (std ≈ 1.0)
+            self._key_e8 = E8Quantizer(
+                scale=2.0 / (2 ** self.key_bits), relaxed=True
+            )
+            self._val_e8 = E8Quantizer(
+                scale=2.0 / (2 ** self.val_bits), relaxed=True
+            )
+
         # Triton path: precompute S and SR = S @ R^T for fused quantize kernel.
         # Only available for QR rotation on CUDA (Triton kernel uses dense R).
         if (
@@ -232,12 +247,20 @@ class _CompressedLayer:
         else:
             rotated = normalized @ self._rotation
 
-        # Quantize per coordinate
-        indices = torch.bucketize(rotated, codebook.boundaries)
-        indices = indices.clamp(0, codebook.centroids.shape[0] - 1)
+        # Quantize: per-coordinate (Lloyd-Max) or 8D blocks (E8 lattice)
+        e8_q = self._key_e8 if codebook is self._key_codebook else self._val_e8
+        if self.quantizer_type == "e8" and e8_q is not None:
+            # E8 lattice VQ: adaptive scale based on actual data range
+            actual_scale = max(2.0 * rotated.std().item() / (2 ** codebook.bits), 1e-8)
+            e8_q_adj = E8Quantizer(scale=actual_scale, relaxed=True)
+            _, recon_rotated = e8_q_adj.quantize(rotated)
+            indices = recon_rotated  # store scaled reconstruction as "indices" (float)
+        else:
+            indices = torch.bucketize(rotated, codebook.boundaries)
+            indices = indices.clamp(0, codebook.centroids.shape[0] - 1)
+            recon_rotated = codebook.centroids[indices]
 
         # Norm correction: store ratio to compensate reconstruction norm drift
-        recon_rotated = codebook.centroids[indices]
         if self._block_rotation is not None:
             recon_unrotated = self._block_rotation.unrotate(recon_rotated)
         elif self._rotation_type == "wht":
@@ -380,7 +403,11 @@ class _CompressedLayer:
             return reconstructed.reshape(batch, heads, seq, d)
 
         # --- PyTorch fallback (WHT rotation or CPU) ---
-        reconstructed = codebook.centroids[flat_idx]
+        if self.quantizer_type == "e8":
+            # E8: "indices" are actually lattice point coordinates (float)
+            reconstructed = flat_idx.float()
+        else:
+            reconstructed = codebook.centroids[flat_idx]
 
         # Apply residual correction
         if res_signs is not None and res_scale is not None:
@@ -719,7 +746,11 @@ class _CompressedLayer:
 
         # --- PyTorch fallback (WHT rotation or CPU) ---
         # Gather centroids in float32 (the fused path core)
-        reconstructed = codebook.centroids.float()[flat_idx.long()]
+        if self.quantizer_type == "e8":
+            # E8: "indices" are lattice point coordinates, not codebook indices
+            reconstructed = flat_idx.float()
+        else:
+            reconstructed = codebook.centroids.float()[flat_idx.long()]
 
         # Apply residual correction in the rotated domain (float32)
         if res_signs is not None and res_scale is not None:

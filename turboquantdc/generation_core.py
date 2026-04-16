@@ -168,6 +168,7 @@ class GenerationCache:
         rotation_type: str | None = None,
         use_triton: bool = _TRITON_AVAILABLE,
         center_before_quantize: bool = True,
+        quantizer_type: str = "lloyd_max",
     ):
         if not (1 <= key_bits <= 8):
             raise ValueError(f"key_bits must be 1-8, got {key_bits}")
@@ -196,6 +197,7 @@ class GenerationCache:
         self.use_residual_quant = use_residual_quant
         self.rotation_type = rotation_type  # None = auto (WHT for power-of-2 d)
         self.use_triton = use_triton
+        self.quantizer_type = quantizer_type  # "lloyd_max" or "e8"
         self.center_before_quantize = center_before_quantize
 
         # Pre-compute anchor schedule when num_layers is known
@@ -265,6 +267,7 @@ class GenerationCache:
             rotation_type=self.rotation_type,
             use_triton=self.use_triton,
             center_before_quantize=self.center_before_quantize,
+            quantizer_type=getattr(self, 'quantizer_type', 'lloyd_max'),
         )
 
     # ---- HF Cache protocol ----
