@@ -67,12 +67,42 @@ Our contributions:
 - 2.4 E8 lattice and optimal sphere packing (Viazovska 2016)
 - 2.5 Zador's theorem: NSM_E8 = 0.07168 vs NSM_Z = 0.08333
 
-### 3. Method
-- 3.1 Pipeline: mean-remove → normalize → WHT rotate → E8 quantize per 8D block
-- 3.2 Conway-Sloane nearest E8 point (two-coset algorithm)
-- 3.3 Relaxed E8 (no parity constraint) for KV cache data
-- 3.4 Scale calibration (adaptive to post-WHT distribution)
-- 3.5 E8P encoding for compact storage (16 bits per 8D block = 2 bits/dim)
+### 3. Method (draft)
+
+**3.1 Pipeline overview.** Given a key vector k ∈ R^d (d=128 typical):
+
+```
+k → subtract per-head mean μ → normalize to unit sphere → WHT rotate → 
+    reshape to (d/8, 8) blocks → E8 nearest point per block → 
+    inverse WHT → rescale by ||k-μ|| → add μ back
+```
+
+The mean-removal exploits softmax shift-invariance: softmax(Qk^T + c) = softmax(Qk^T)
+for any constant c. Subtracting the per-head mean reduces dynamic range with zero
+attention quality loss. The WHT rotation concentrates the distribution toward
+Gaussian N(0, 1/d) per coordinate, matching the E8 lattice's optimal operating regime.
+
+**3.2 E8 nearest point.** The E8 lattice decomposes as E8 = D8 ∪ (D8 + ½),
+where D8 = {x ∈ Z^8 : Σx_i is even}. Finding the nearest lattice point:
+
+1. Round to nearest integer vector r₁; if Σr₁ is odd, flip the least-confident coord
+2. Round to nearest half-integer vector r₂; apply same parity fix
+3. Return whichever (r₁ or r₂) is closer to the input
+
+This is O(1) per 8D block — no iteration, no search, pure arithmetic.
+
+**3.3 Relaxed E8.** For KV cache data concentrated near the origin, we remove the
+even-sum parity constraint, allowing all integer and half-integer points. This adds
+codewords near zero where WHT-rotated unit vectors concentrate, reducing overload
+distortion.
+
+**3.4 Scale selection.** The E8 lattice has unit spacing. We scale the input by
+1/(s·2^b) before lattice quantization, where s = std(WHT(k)) and b is the target
+bit rate. This matches the Zamir-Feder optimal scale for Gaussian sources.
+
+**3.5 E8P encoding.** For compact storage (2 bits/dim), each 8D lattice point
+can be encoded as: 8 bits (source pattern from 256-entry set) + 7 bits (sign flips,
+8th inferred from parity) + 1 bit (coset ±¼ shift) = 16 bits per 8D block.
 
 ### 4. Experiments
 - 4.1 Models: Qwen2.5-{3B, 7B, 14B}, Mistral-7B, [Phi-3.5-mini?]
