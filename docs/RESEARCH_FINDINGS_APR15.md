@@ -112,7 +112,9 @@ Tested on Qwen2.5-3B (36 layers, d=128, 512 tokens):
 ### FP16 Weight Validation (No BnB — Critical Test)
 - **Qwen2.5-3B FP16 weights: E8 3-bit PPL 9.7262 vs FP16 9.7261 = +0.001% (IDENTICAL)**
 - Qwen2.5-0.5B FP16 weights: E8 3-bit +3.56% (small model, d=64, 2 KV heads — hardest case)
-- **E8 result is NOT a BnB artifact.** Confirmed near-lossless on full-precision weights.
+- Qwen2.5-7B FP16 weights: E8 3-bit +0.20% — near-lossless but does NOT beat FP16
+- **E8 near-lossless result is real on FP16 weights.** The "beats FP16" finding is BnB-specific.
+- **Corrected claim**: E8 3-bit = +0.0-0.2% on FP16 weights (near-lossless, not better-than-FP16)
 - Per-layer calibration: uniform across all 48 layers on 14B — global scale sufficient
 
 ### Full E8 Results Table (Complete Matrix)
