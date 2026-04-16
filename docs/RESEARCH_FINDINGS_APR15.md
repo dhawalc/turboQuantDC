@@ -140,6 +140,12 @@ Tested on Qwen2.5-3B (36 layers, d=128, 512 tokens):
 - **HONEST**: Eviction at 512 tokens FAILS catastrophically (PPL 260+). Not enough
   redundancy at short context. Gini=0.71 at n=512 means 29% of tokens still matter.
   Eviction is a LONG-CONTEXT technique (16K+), not universal.
+- **ROOT CAUSE**: Zeroing keys ≠ proper eviction (breaks softmax normalization).
+  Proper eviction REMOVES tokens from cache; zeroing redistributes attention mass.
+- **PPL vs Generation**: PPL uses ALL positions as queries — union of important tokens
+  is nearly everything. Eviction works for GENERATION (single query) not PPL measurement.
+- Tested 512/1024/2048: even 75% retention gives PPL 300-831x degradation with zeroing.
+- Need proper cache resize (not zeroing) + generation-time evaluation (not PPL).
 
 ### The 100x stack (each component published):
 KVTC PCA (4x) + E8 VQ (5x) + eviction (4-8x) + retrieval decode (10-50x) = 800-8000x at 100K
