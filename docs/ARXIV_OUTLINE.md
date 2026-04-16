@@ -149,11 +149,39 @@ Bold = beats FP16 baseline. All E8 results use optimized scale (1·σ/2^b).
 | IsoQuant (4D quat) | Scalar Lloyd-Max | 49.85 | +336% |
 | PlanarQuant (2D Givens) | Scalar Lloyd-Max | 103.04 | +801% |
 
-### 6. Analysis
-- 6.1 Why E8 helps: Voronoi cell geometry and sub-Gaussian KV distributions
-- 6.2 Mean-removal is KV-head-dependent (critical at 2-4 heads, neutral at 8+)
-- 6.3 Attention cosine does NOT predict PPL
-- 6.4 The regularization effect (E8 4-bit beats FP16 on 7B)
+### 6. Analysis (draft)
+
+**6.1 Why E8 helps.** The E8 lattice achieves NSM G(E8) = 0.07168 vs G(Z) = 0.08333
+for scalar quantization — a 14% reduction in normalized distortion. For d=128 with
+16 independent 8D blocks, this translates to 14% lower MSE at every bit rate.
+In practice we observe 86-89% MSE reduction, far exceeding the 14% theoretical
+minimum. The additional gain comes from E8's superior handling of the sub-Gaussian
+post-WHT distribution: the Voronoi cells of E8 are more spherical than the
+hypercubic cells of scalar quantization, better matching the concentrated
+distribution of rotated unit vectors.
+
+**6.2 Mean-removal depends on KV head count.** With 2-4 KV heads (Qwen-3B/7B),
+each head carries substantial per-channel bias. Mean-removal eliminates this bias
+(losslessly, via softmax shift-invariance), reducing the dynamic range by up to
+10x. With 8+ heads (Qwen-14B, Mistral), the per-head mean is already near zero
+and mean-removal provides minimal benefit — and can actually hurt block-diagonal
+rotations by distorting their expected input distribution.
+
+**6.3 Attention cosine similarity does NOT predict PPL.** Across all models, the
+method with the highest attention cosine similarity often has the worst PPL.
+WHT+Mean has the lowest attention cosine (0.089 on 7B) but the best PPL (9.06).
+This is because attention cosine measures per-query similarity of softmax outputs,
+while PPL depends on cumulative cross-entropy across all layers and tokens.
+Mean-removal preserves the relative token ordering (which determines generation
+quality) while shifting absolute attention scores.
+
+**6.4 The regularization effect.** On Qwen2.5-7B and Mistral-7B with BnB 4-bit
+weight quantization, E8 3-bit KV cache achieves *lower* perplexity than FP16 KV
+cache. We hypothesize that E8 lattice snapping acts as a distributional regularizer:
+the 4-bit weight quantization introduces small systematic biases in the attention
+computation, and E8's discretization of key vectors counteracts these biases by
+forcing keys onto a regular lattice structure. This effect is scale-dependent
+(optimal at s ≈ 0.10) and disappears with FP16 model weights.
 
 ### 7. Related Work
 - TurboQuant (ICLR 2026), QuIP# (ICML 2024), NestQuant (ICML 2025)
