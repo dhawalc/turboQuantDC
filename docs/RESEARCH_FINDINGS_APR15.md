@@ -102,6 +102,8 @@ Tested on Qwen2.5-3B (36 layers, d=128, 512 tokens):
 - E8 GenerationCache integration: quantizer_type="e8" works for real generation
 - Mistral-7B: 3-bit -0.02%, 4-bit -0.00% — architecture-independent (beats FP16!)
 - NIAH: 4/4 pass at 2K (3B, all methods) + 3/3 pass at 4K (7B, needle at begin/mid/end)
+- TinyLlama-1.1B (Llama arch, d=64): E8 3-bit +0.20% vs scalar +8.26% (41x improvement)
+- E8 validated on 3 architectures (Qwen, Mistral, Llama) and 2 head dims (d=64, d=128)
 - Per-layer calibration: uniform across all 48 layers on 14B — global scale sufficient
 
 ### Full E8 Results Table (Complete Matrix)
