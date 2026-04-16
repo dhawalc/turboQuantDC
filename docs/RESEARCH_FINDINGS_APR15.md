@@ -108,6 +108,11 @@ Tested on Qwen2.5-3B (36 layers, d=128, 512 tokens):
 - NIAH: 4/4 pass at 2K (3B, all methods) + 3/3 pass at 4K (7B, needle at begin/mid/end)
 - TinyLlama-1.1B (Llama arch, d=64): E8 3-bit +0.20% vs scalar +8.26% (41x improvement)
 - E8 validated on 3 architectures (Qwen, Mistral, Llama) and 2 head dims (d=64, d=128)
+
+### FP16 Weight Validation (No BnB — Critical Test)
+- **Qwen2.5-3B FP16 weights: E8 3-bit PPL 9.7262 vs FP16 9.7261 = +0.001% (IDENTICAL)**
+- Qwen2.5-0.5B FP16 weights: E8 3-bit +3.56% (small model, d=64, 2 KV heads — hardest case)
+- **E8 result is NOT a BnB artifact.** Confirmed near-lossless on full-precision weights.
 - Per-layer calibration: uniform across all 48 layers on 14B — global scale sufficient
 
 ### Full E8 Results Table (Complete Matrix)
