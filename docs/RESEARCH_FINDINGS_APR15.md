@@ -131,6 +131,13 @@ Tested on Qwen2.5-3B (36 layers, d=128, 512 tokens):
 4. **HALO/HypeNet**: Convert to hybrid linear attention, eliminate KV for converted layers
 5. **Bottlenecked Transformers**: Information-theoretic KV rewriting
 
+### Retrieval + E8 Proof of Concept (Tested)
+- 1-bit sketch (sign of WHT keys) retrieves top-k tokens for attention
+- k=64: 64-93% attention mass captured (layer-dependent), 10.5x compression
+- Storage: 1.52 bits/dim at k=64/484 tokens
+- At 16K context with k=64: ~0.1 bits/dim = 160x compression
+- Layer 9 sketch retrieval: 93% attention mass — nearly perfect routing from 1 bit
+
 ### The 100x stack (each component published):
 KVTC PCA (4x) + E8 VQ (5x) + eviction (4-8x) + retrieval decode (10-50x) = 800-8000x at 100K
 
