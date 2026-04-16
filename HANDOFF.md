@@ -34,7 +34,8 @@ This fixes the root cause of why TurboQuant 3-bit catastrophically fails on Qwen
 | **E8 lattice VQ** (new technique) | **PPL +0.1% on 3B, +0.8% on 7B** at 3-bit | **PROVEN, near-lossless** |
 | E8 vs scalar Lloyd-Max MSE | 86-89% lower MSE at same bit rate | PROVEN on synthetic+real |
 | **E8 2-bit viable** | PPL +1.3% (3B), +3.5% (7B) at 8x compression | PROVEN (scalar 2-bit is +22-29%) |
-| **E8 3-bit BEATS FP16** | 7B: -0.08%, Mistral: -0.02% (better than FP16!) | PROVEN, optimized scale |
+| **E8 3-bit near-lossless** | FP16 weights: +0.001% (3B), +0.20% (7B) | PROVEN on FP16 weights |
+| E8 3-bit beats FP16 on BnB | 7B: -0.08%, Mistral: -0.02% (BnB regularization) | PROVEN, BnB-specific |
 | E8 on 14B improved | +1.53% → +0.53% via scale optimization | PROVEN, 3x better |
 
 ## What's Overstated (Corrected)
