@@ -114,13 +114,40 @@ can be encoded as: 8 bits (source pattern from 256-entry set) + 7 bits (sign fli
 - 4.7 Ablation: mean-removal contribution with E8
 - 4.8 Speed comparison
 
-### 5. Results
-- Table 1: PPL across models and bit-widths (the money table)
-- Table 2: MSE comparison (E8 vs scalar, 86-89% reduction)
-- Table 3: Generation quality (token match)
-- Table 4: Attention fidelity
-- Figure 1: PPL vs bit-rate curves
-- Figure 2: MSE vs bit-rate with Zador bounds
+### 5. Results (draft)
+
+**Table 1: E8+WHT+Mean PPL on wikitext-2 (K-only compression, BnB 4-bit weights)**
+
+| Model | Arch | d | KV Heads | FP16 | E8 2-bit | E8 3-bit | E8 4-bit | Scalar 3-bit |
+|-------|------|---|----------|------|----------|----------|----------|-------------|
+| TinyLlama-1.1B | Llama | 64 | 4 | 10.94 | 11.03 (+0.86%) | 10.96 (+0.20%) | 10.94 (+0.02%) | 11.84 (+8.26%) |
+| Qwen2.5-3B | Qwen | 128 | 2 | 11.44 | 11.49 (+0.76%) | 11.44 (+0.08%) | 11.44 (+0.08%) | 11.87 (+3.84%) |
+| Qwen2.5-7B | Qwen | 128 | 4 | 8.43 | 8.49 (+0.76%) | **8.42 (-0.08%)** | 8.43 (-0.00%) | 9.06 (+7.47%) |
+| Mistral-7B | Mistral | 128 | 8 | 8.22 | 8.26 (+0.48%) | **8.22 (-0.02%)** | 8.22 (-0.00%) | 8.30 (+0.92%) |
+| Qwen2.5-14B | Qwen | 128 | 8 | 4.94 | — | 4.97 (+0.53%) | 4.97 (+0.53%) | 5.58 (+12.93%) |
+
+Bold = beats FP16 baseline. All E8 results use optimized scale (1·σ/2^b).
+
+**Table 2: E8 improvement over scalar Lloyd-Max (same bit rate)**
+
+| Metric | E8 advantage |
+|--------|-------------|
+| MSE (synthetic, d=128) | 86-89% lower |
+| PPL degradation (avg across 5 models) | 10-41x less |
+| Generation token match (5 prompts) | 72% vs 52% |
+| NIAH retrieval (2K-4K context) | 7/7 pass (identical to FP16) |
+| Quantize overhead | <1ms at 4K context |
+
+**Table 3: Ablation — rotation method with E8 (Qwen2.5-3B, 3-bit)**
+
+| Rotation | Quantizer | PPL | vs FP16 |
+|----------|-----------|-----|---------|
+| WHT + mean-removal | E8 lattice | 11.44 | +0.08% |
+| WHT + mean-removal | Scalar Lloyd-Max | 11.87 | +3.84% |
+| WHT (no mean) | E8 lattice | — | — |
+| WHT (no mean) | Scalar Lloyd-Max | 2,340 | catastrophic |
+| IsoQuant (4D quat) | Scalar Lloyd-Max | 49.85 | +336% |
+| PlanarQuant (2D Givens) | Scalar Lloyd-Max | 103.04 | +801% |
 
 ### 6. Analysis
 - 6.1 Why E8 helps: Voronoi cell geometry and sub-Gaussian KV distributions
