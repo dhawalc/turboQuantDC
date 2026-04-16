@@ -92,6 +92,8 @@ Tested on Qwen2.5-3B (36 layers, d=128, 512 tokens):
 - 22 unit tests passing
 - Speed: E8 adds <1ms even at 65K vectors. At 4K (typical), +0.089ms. WHT rotation dominates total time.
 - E8P lookup encoding: 800K unique points at 50K calibration → needs algebraic E8P (QuIP# style)
+- E8P direct quantizer (2 bits/dim): PPL +400% — too coarse for near-lossless
+- Need E8P + 1-bit residual VQ (3 bits/dim total) for quality + compression, like QuIP# E8P12RVQ3B
 - Scale sweep on 3B: mult=1.0 (+0.07%) and mult=0.5 (+0.08%) tied — default is near-optimal
 - 1-bit E8: PPL +10.0% on 3B at 19.2x compression — usable but not near-lossless
 - Scale theory: our heuristic 2*std/2^b matches Zamir-Feder optimal for Gaussian sources
