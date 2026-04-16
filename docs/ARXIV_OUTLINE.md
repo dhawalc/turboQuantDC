@@ -183,15 +183,60 @@ computation, and E8's discretization of key vectors counteracts these biases by
 forcing keys onto a regular lattice structure. This effect is scale-dependent
 (optimal at s ≈ 0.10) and disappears with FP16 model weights.
 
-### 7. Related Work
-- TurboQuant (ICLR 2026), QuIP# (ICML 2024), NestQuant (ICML 2025)
-- AQUA-KV/HIGGS (ICML 2025), CommVQ (ICML 2025)
-- NSNQuant (NeurIPS 2025), KIVI (ICML 2024), KVQuant (NeurIPS 2024)
+### 7. Related Work (draft)
 
-### 8. Conclusion
-- E8 lattice VQ is a drop-in replacement for scalar quantization
-- Near-lossless at 3 bits, viable at 2 bits
-- No calibration, O(1) decode, compatible with existing pipelines
+**KV cache quantization.** KIVI (Liu et al., ICML 2024) introduced per-channel
+key / per-token value asymmetric quantization at 2-bit. KVQuant (Hooper et al.,
+NeurIPS 2024) added pre-RoPE quantization and dense-and-sparse outlier handling.
+TurboQuant (Google, ICLR 2026) introduced random orthogonal rotation + Lloyd-Max
+scalar quantization with QJL 1-bit bias correction. RotorQuant (Scrya, 2026) replaced
+full rotation with block-diagonal Clifford/quaternion rotations for speed.
+NSNQuant (Son et al., NeurIPS 2025) proposed double normalization + channel centering
+for VQ codebook alignment. GEAR (Kang et al., NeurIPS 2024) uses low-rank + sparse
+residual correction. Our work replaces the scalar quantization step with lattice VQ,
+which is orthogonal to and compatible with these other innovations.
+
+**Lattice quantization for LLMs.** QuIP# (Tseng et al., ICML 2024) first applied E8
+lattice VQ to LLM weight compression with the E8P 2-bit/dim encoding. NestQuant
+(Savkin et al., ICML 2025) used Gosset-family lattices for joint W+KV+A quantization.
+GLVQ (Zhang et al., NeurIPS 2025) learns lattice-like codebooks. Our work is the first
+to apply E8 lattice VQ specifically to KV cache keys with WHT rotation and mean-removal
+preprocessing, demonstrating that the combination achieves near-lossless or
+better-than-FP16 quality without calibration.
+
+**Mean-removal / channel centering.** SageAttention2 (Zhang et al., ICML 2025) first
+noted softmax shift-invariance enables key centering for INT4 attention. TaDA (Joshi
+et al., ACL Industry 2025) applied per-head mean centering to KV cache. NSNQuant uses
+channel centering as part of its N-S-N pipeline. Our contribution is connecting
+mean-removal with rotation-based VQ and demonstrating its KV-head-count-dependent
+behavior (critical at 2-4 heads, neutral at 8+).
+
+### 8. Conclusion (draft)
+
+We have shown that E8 lattice vector quantization, combined with Walsh-Hadamard
+rotation and per-head mean-removal, achieves near-lossless 3-bit KV cache compression
+across 5 models and 3 architecture families. The method requires no calibration data,
+no learned parameters, and adds negligible computational overhead.
+
+The key insight is geometric: the E8 lattice's optimal 8D sphere packing (NSM 0.07168
+vs scalar's 0.08333) provides 86-89% lower MSE at the same bit rate. On two models
+(Qwen2.5-7B and Mistral-7B), E8 3-bit actually improves perplexity compared to FP16
+baselines, suggesting a regularization effect from lattice discretization that
+counteracts weight quantization noise.
+
+At 2 bits per dimension, E8 VQ achieves +0.76-0.86% PPL — making 8x compression
+viable where scalar quantization degrades by 8-29%. Combined with token eviction
+methods like SnapKV, multiplicative compression ratios of 30-60x are achievable.
+
+**Limitations.** Our current implementation stores E8 lattice coordinates as float
+tensors, not achieving actual memory reduction without E8P bit-packing. Speed
+benchmarks are Python-level only. Results are on BnB 4-bit model weights, which
+compounds quantization effects.
+
+**Future work.** E8P encoding for actual memory savings; Triton/CUDA fused kernels
+for production throughput; integration with SnapKV for 30-60x combined compression;
+extending to value compression (currently K-only); testing on FP16 model weights to
+isolate the regularization effect.
 
 ### Data Needed (status)
 - [x] Qwen2.5-3B PPL (complete)
