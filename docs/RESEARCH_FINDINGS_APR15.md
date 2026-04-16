@@ -115,6 +115,12 @@ Tested on Qwen2.5-3B (36 layers, d=128, 512 tokens):
 - Qwen2.5-7B FP16 weights: E8 3-bit +0.20% — near-lossless but does NOT beat FP16
 - **E8 near-lossless result is real on FP16 weights.** The "beats FP16" finding is BnB-specific.
 - **Corrected claim**: E8 3-bit = +0.0-0.2% on FP16 weights (near-lossless, not better-than-FP16)
+
+### Qwen3-8B (April 16 — the model 8.5M people downloaded)
+- E8 3-bit: PPL 11.60 (-0.22% vs FP16 11.63) — BEATS FP16 on BnB 4-bit
+- E8 2-bit: PPL 11.67 (+0.37%) — near-lossless at 8x compression
+- Real-world impact: RTX 3060 12GB goes from 43K → 230K context with Qwen3-8B
+- This is the model the community actually runs. E8 works on it.
 - Per-layer calibration: uniform across all 48 layers on 14B — global scale sufficient
 
 ## Paradigm-Breaking Research (Late Session)
