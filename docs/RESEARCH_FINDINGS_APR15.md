@@ -95,6 +95,8 @@ Tested on Qwen2.5-3B (36 layers, d=128, 512 tokens):
 - Scale sweep on 3B: mult=1.0 (+0.07%) and mult=0.5 (+0.08%) tied — default is near-optimal
 - 1-bit E8: PPL +10.0% on 3B at 19.2x compression — usable but not near-lossless
 - Scale theory: our heuristic 2*std/2^b matches Zamir-Feder optimal for Gaussian sources
+- Per-layer calibration on 14B: all layers converge to same scale (0.0375) — global scale sufficient
+- E8 regularization effect: beats FP16 by 0.075% on 7B at optimal scale (s=0.10)
 - SnapKV + E8 stacking: 30-60x combined compression (4-8x eviction × 7.5x E8)
 - E8P encoding algorithm: 256 source patterns + 7 sign bits + 1 coset = 16 bits/block
 - E8 GenerationCache integration: quantizer_type="e8" works for real generation
