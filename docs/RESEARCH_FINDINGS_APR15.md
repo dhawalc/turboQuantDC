@@ -100,7 +100,9 @@ Tested on Qwen2.5-3B (36 layers, d=128, 512 tokens):
 - SnapKV + E8 stacking: 30-60x combined compression (4-8x eviction × 7.5x E8)
 - E8P encoding algorithm: 256 source patterns + 7 sign bits + 1 coset = 16 bits/block
 - E8 GenerationCache integration: quantizer_type="e8" works for real generation
-- Mistral-7B: 3-bit +0.1%, 4-bit -0.0% (identical to FP16) — architecture-independent
+- Mistral-7B: 3-bit -0.02%, 4-bit -0.00% — architecture-independent (beats FP16!)
+- NIAH: 4/4 pass at 2K context (FP16, E8 3-bit, E8 2-bit, WHT+Mean 3-bit all find needle)
+- Per-layer calibration: uniform across all 48 layers on 14B — global scale sufficient
 
 ### Full E8 Results Table (Complete Matrix)
 
