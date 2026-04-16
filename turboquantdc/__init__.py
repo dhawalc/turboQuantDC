@@ -51,6 +51,8 @@ from .asymmetric import (
 )
 from .chunked_prefill import ChunkedPrefillEngine
 from .codebook import LloydMaxCodebook, beta_pdf, gaussian_pdf, solve_lloyd_max
+from .e8_lattice import E8Quantizer, nearest_e8, nearest_e8_relaxed, calibrate_scale
+from .e8p_codec import E8PCodec
 from .custom_attention import patch_model_attention, turboquant_attention
 from .estimator import TurboQuantEstimator
 from .fused_attention import (
