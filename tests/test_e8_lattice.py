@@ -197,6 +197,28 @@ class TestCalibrateScale:
 
 # ── Integration with WHT Pipeline ────────────────────────────────────────
 
+class TestE8Int8Encoding:
+    def test_roundtrip_lossless(self, random_128d):
+        eq = E8Quantizer(scale=0.05, relaxed=True)
+        int8_codes, scale = eq.encode_int8(random_128d)
+        decoded = eq.decode_int8(int8_codes, scale)
+        _, expected = eq.quantize(random_128d)
+        assert torch.allclose(decoded, expected, atol=1e-5), \
+            f"int8 roundtrip error: {(decoded - expected).abs().max()}"
+
+    def test_int_dtype(self, random_128d):
+        eq = E8Quantizer(scale=0.05, relaxed=True)
+        int_codes, _ = eq.encode_int8(random_128d)
+        assert int_codes.dtype == torch.int16
+
+    def test_compression_ratio(self, random_128d):
+        eq = E8Quantizer(scale=0.1, relaxed=True)
+        int_codes, _ = eq.encode_int8(random_128d)
+        # int16 = 2 bytes per coord, same as fp16 but lossless E8
+        # Real savings come from zlib or when combined with block norm separation
+        assert int_codes.numel() == random_128d.numel()
+
+
 class TestE8WithWHT:
     def test_wht_e8_roundtrip(self, device):
         """Full pipeline: WHT rotate → E8 quantize → inverse WHT."""

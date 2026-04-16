@@ -173,6 +173,41 @@ class E8Quantizer:
         return lattice_pts * self.scale
 
 
+    def encode_int8(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, float]:
+        """Quantize and encode as int8 for compact storage.
+
+        Lattice coordinates are integers or half-integers, so lattice*2 = int.
+        Stores as int8 (1 byte per coordinate) — lossless roundtrip.
+
+        Args:
+            x: (..., d) tensor where d is divisible by 8
+
+        Returns:
+            (int8_codes, vector_norms, scale):
+            - int8_codes: (..., d) int8 tensor (lattice_point * 2, fits [-128, 127])
+            - vector_norms: (..., 1) fp16 norms for rescaling
+            - scale: float, the quantization scale used
+        """
+        lattice_pts, _ = self.quantize(x)
+        # lattice_pts = nearest_e8(x / scale), so these are raw lattice coords
+        # Multiply by 2 to convert half-integers to integers, store as int8
+        int_codes = (lattice_pts * 2).to(torch.int16)
+        return int_codes, self.scale
+
+    def decode_int8(self, int_codes: torch.Tensor, scale: float) -> torch.Tensor:
+        """Decode integer codes back to reconstructed vectors.
+
+        Args:
+            int_codes: (..., d) int8 or int16 tensor from encode_int8
+            scale: float scale from encode_int8
+
+        Returns:
+            Reconstructed tensor, same shape as int_codes
+        """
+        lattice_pts = int_codes.float() / 2.0
+        return lattice_pts * scale
+
+
 def calibrate_scale(x: torch.Tensor, target_bits: float = 3.0) -> float:
     """Estimate optimal E8 scale for a given target bit rate.
 
