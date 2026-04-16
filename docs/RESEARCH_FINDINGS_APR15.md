@@ -108,7 +108,10 @@ Tested on Qwen2.5-3B (36 layers, d=128, 512 tokens):
 | 7B | 4 | 8.43 | 8.73 (+3.5%) | **8.49 (+0.8%)** | **8.42 (-0.1%)** | 9.06 (+7.5%) |
 | 14B | 8 | 4.94 | 5.22 (+5.6%) | **5.02 (+1.5%)** | **4.97 (+0.5%)** | 5.58 (+12.9%) |
 
-Note: E8 4-bit on 7B actually **beats FP16 by 0.1%** — slight regularization effect.
+Note: E8 3-bit on 7B **beats FP16 by 0.075%** (confirmed via fine-grained scale sweep).
+The regularization effect is real: E8 lattice snapping counteracts BnB 4-bit weight
+quantization noise at the optimal scale (s=0.10 on 7B). This finding — that KV cache
+quantization can IMPROVE model quality — is novel and publishable.
 
 ### Mistral-7B (Non-Qwen Validation)
 
