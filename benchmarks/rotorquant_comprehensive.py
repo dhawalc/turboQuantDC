@@ -352,8 +352,8 @@ class E8WHTMeanCompressor(Compressor):
 
         # E8 quantize in 8D blocks
         # fast_wht is unnormalized: output std ≈ 1.0 for d=128 unit vectors
-        # Scale = 2*std / 2^bits gives ~2^bits effective levels
-        scale = 2.0 * rotated.std().item() / (2 ** self.bits)
+        # Scale = std / 2^bits (reduced from 2*std — research showed 2x too coarse on 14B)
+        scale = 1.0 * rotated.std().item() / (2 ** self.bits)
         eq = E8Quantizer(scale=max(scale, 1e-8), relaxed=True)
         _, recon_rot = eq.quantize(rotated)
 

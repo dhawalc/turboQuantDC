@@ -251,7 +251,7 @@ class _CompressedLayer:
         e8_q = self._key_e8 if codebook is self._key_codebook else self._val_e8
         if self.quantizer_type == "e8" and e8_q is not None:
             # E8 lattice VQ: adaptive scale based on actual data range
-            actual_scale = max(2.0 * rotated.std().item() / (2 ** codebook.bits), 1e-8)
+            actual_scale = max(1.0 * rotated.std().item() / (2 ** codebook.bits), 1e-8)
             e8_q_adj = E8Quantizer(scale=actual_scale, relaxed=True)
             _, recon_rotated = e8_q_adj.quantize(rotated)
             indices = recon_rotated  # store scaled reconstruction as "indices" (float)

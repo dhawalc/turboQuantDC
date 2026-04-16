@@ -92,6 +92,13 @@ Tested on Qwen2.5-3B (36 layers, d=128, 512 tokens):
 - 22 unit tests passing
 - Speed: E8 adds <1ms even at 65K vectors. At 4K (typical), +0.089ms. WHT rotation dominates total time.
 - E8P lookup encoding: 800K unique points at 50K calibration → needs algebraic E8P (QuIP# style)
+- Scale sweep on 3B: mult=1.0 (+0.07%) and mult=0.5 (+0.08%) tied — default is near-optimal
+- 1-bit E8: PPL +10.0% on 3B at 19.2x compression — usable but not near-lossless
+- Scale theory: our heuristic 2*std/2^b matches Zamir-Feder optimal for Gaussian sources
+- SnapKV + E8 stacking: 30-60x combined compression (4-8x eviction × 7.5x E8)
+- E8P encoding algorithm: 256 source patterns + 7 sign bits + 1 coset = 16 bits/block
+- E8 GenerationCache integration: quantizer_type="e8" works for real generation
+- Mistral-7B: 3-bit +0.1%, 4-bit -0.0% (identical to FP16) — architecture-independent
 
 ### Full E8 Results Table (Complete Matrix)
 
