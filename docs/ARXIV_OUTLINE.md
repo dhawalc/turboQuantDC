@@ -7,17 +7,23 @@
 2. "Beyond Scalar Quantization: E8 Lattice VQ for LLM Key-Value Caches"
 3. "Near-Lossless 3-Bit KV Cache Compression via E8 Lattice Vector Quantization"
 
-### Abstract (draft)
+### Abstract (draft — updated with optimized scale)
 We show that replacing per-coordinate scalar quantization with E8 lattice vector
-quantization in the TurboQuant KV cache compression pipeline reduces perplexity
-degradation from 3.8% to 0.1% at 3 bits per dimension on Qwen2.5-3B, and from
-7.5% to 0.8% on Qwen2.5-7B. The E8 lattice, which achieves the optimal sphere
-packing in 8 dimensions, has 14% lower normalized second moment than scalar
-quantization (Zador's theorem), translating to 86-89% lower MSE in practice.
-Our method requires no calibration data, no learned parameters, and adds negligible
-computational overhead (O(1) per 8D block via the Conway-Sloane algorithm).
-Combined with Walsh-Hadamard rotation and per-head mean-removal, this achieves
-near-lossless compression at 5x memory reduction.
+quantization in the KV cache compression pipeline achieves near-lossless 3-bit
+compression across multiple model families. On Qwen2.5-3B (+0.08%), Qwen2.5-7B,
+Qwen2.5-14B (+0.53%), and Mistral-7B, E8 lattice VQ reduces PPL degradation by
+3-38x compared to scalar Lloyd-Max quantization at the same bit rate.
+
+The E8 lattice achieves the optimal sphere packing in 8 dimensions (Viazovska 2016)
+with 14% lower normalized second moment than scalar quantization (Zador's theorem).
+Combined with Walsh-Hadamard rotation for distribution concentration and per-head
+mean-removal exploiting softmax shift-invariance, this pipeline requires no
+calibration data, no learned parameters, and adds <1ms overhead via the
+Conway-Sloane nearest-point algorithm.
+
+At 2 bits per dimension, E8 VQ achieves +1.3% PPL on Qwen2.5-3B and +3.5% on
+Qwen2.5-7B — making 8x compression viable where scalar 2-bit degrades by 22-29%.
+Generation quality: 72% exact token match vs FP16 across 5 diverse prompts.
 
 ### 1. Introduction
 - KV cache is the memory bottleneck for long-context LLM inference
