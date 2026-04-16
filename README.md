@@ -4,7 +4,9 @@
 
 From-scratch KV cache compression library implementing TurboQuant (ICLR 2026). Built in one week. Found why TurboQuant catastrophically fails on Qwen models, proved the fix in production llama.cpp C code, and produced 3 publishable findings along the way.
 
-123 commits. 1,796 tests. 20 experiments (8 breakthroughs, 4 dead ends -- all published). MIT license.
+155+ commits. 1,818+ tests. 31 experiments (10 breakthroughs, 7 dead ends -- all published). MIT license.
+
+**NEW (April 15, 2026): E8 lattice VQ achieves near-lossless 3-bit KV cache compression — PPL +0.001% on Qwen2.5-3B (FP16 weights).** See [E8 results](#e8-lattice-vq) below.
 
 [Live showcase](https://dhawalc.github.io/turboQuantDC/) | [PyPI](https://pypi.org/project/turboquantdc/)
 
@@ -64,6 +66,31 @@ Without mean-removal, the model generates `0000., . numberWith); .0..0..` instea
 | KVSculpt cache distillation | 19.7x near-lossless token synthesis |
 | Expected Attention pruning | 10x at 0.978 cosine (analytical importance prediction) |
 | Cayley learned rotation | Novel attention-KL objective; modest practical gain (+0.002-0.006) |
+
+### E8 Lattice VQ (April 15, 2026) {#e8-lattice-vq}
+
+Replacing scalar Lloyd-Max with E8 lattice vector quantization (8D blocks) after WHT rotation reduces MSE by 86-89% at the same bit rate. The E8 lattice achieves optimal sphere packing in 8 dimensions (Viazovska 2016, Fields Medal).
+
+```python
+from turboquantdc import GenerationCache
+
+# Drop-in: just set quantizer_type="e8"
+cache = GenerationCache(key_bits=3, val_bits=3, quantizer_type="e8")
+output = model.generate(inputs, past_key_values=cache, max_new_tokens=100)
+```
+
+| Model | Weights | E8 3-bit PPL | vs FP16 | Scalar 3-bit |
+|-------|---------|-------------|---------|-------------|
+| Qwen2.5-3B | FP16 | 9.7262 | **+0.001%** | +3.8% |
+| Qwen2.5-7B | FP16 | 6.9881 | +0.20% | +7.5% |
+| Qwen2.5-3B | BnB 4-bit | 11.4438 | +0.08% | +3.8% |
+| Qwen2.5-7B | BnB 4-bit | 8.4228 | -0.08% | +7.5% |
+| Mistral-7B | BnB 4-bit | 8.2206 | -0.02% | +0.9% |
+| TinyLlama-1.1B | BnB 4-bit | 10.9608 | +0.20% | +8.3% |
+
+**No calibration. No learned parameters. O(1) per 8D block. <1ms overhead at 4K context.**
+
+Run the demo: `python demo_e8.py --model Qwen/Qwen2.5-3B-Instruct --bits 3`
 
 ### 4 Dead Ends (published)
 
