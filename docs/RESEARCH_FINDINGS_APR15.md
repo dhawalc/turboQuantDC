@@ -117,6 +117,23 @@ Tested on Qwen2.5-3B (36 layers, d=128, 512 tokens):
 - **Corrected claim**: E8 3-bit = +0.0-0.2% on FP16 weights (near-lossless, not better-than-FP16)
 - Per-layer calibration: uniform across all 48 layers on 14B — global scale sufficient
 
+## Paradigm-Breaking Research (Late Session)
+
+### Thin Keys Experiment
+- d/4 (rank=32): 37-75% top-1 routing match (layer-dependent)
+- d/2 (rank=64): 67-95% top-1 match
+- Keys ARE overcomplete but less dramatically than "Thin Keys" paper claims for Qwen GQA
+
+### Top paradigm shifts identified (all published, untested together):
+1. **MHA2MLA conversion**: 92% KV reduction via SVD + 0.3% fine-tuning (ACL 2025)
+2. **KVTC PCA + E8 stack**: Cross-head decorrelation + lattice VQ = 20-40x
+3. **Retrieval attention + asymptotic law**: sub-1-bit average at 1M context
+4. **HALO/HypeNet**: Convert to hybrid linear attention, eliminate KV for converted layers
+5. **Bottlenecked Transformers**: Information-theoretic KV rewriting
+
+### The 100x stack (each component published):
+KVTC PCA (4x) + E8 VQ (5x) + eviction (4-8x) + retrieval decode (10-50x) = 800-8000x at 100K
+
 ### Full E8 Results Table (Complete Matrix)
 
 | Model | KV Heads | FP16 PPL | E8 2-bit | E8 3-bit | E8 4-bit | Scalar 3-bit+Mean |
