@@ -1,4 +1,28 @@
-# TurboQuantDC — Handoff (Updated April 15, 2026)
+# TurboQuantDC — Handoff
+
+## Current snapshot — 2026-04-27 ~10:55 PDT
+
+**Session today:** see `HANDOFF_2026-04-27.md` for the full overnight + post-wake run. Key outputs:
+
+- **PR #1 open:** https://github.com/dhawalc/turboQuantDC/pull/1 — `Phase D: vLLM custom AttentionImpl for TurboQuant 3-bit KV` (branch `phase-d-vllm-attention-impl`).
+- **8-way Opus 4.7 code review** at `docs/code_review/2026-04-27/CODE_REVIEW_2026-04-27.md` (synthesis) + per-area files `01_*` through `08_*`.
+- **Working vLLM serve recipe:** `scripts/serve_qwen36_flawless.sh` (Qwen3.6-27B-AWQ-INT4 on RTX 4090, max-model-len 1024, max-num-seqs 1, FlashInfer workspace 128 MiB). Real constraint: 4090 + your `uvicorn :8110` + prod + colleague leaves ~2 GiB residual after weights. Goal of 4500 tok/s blocked by VRAM, not software, in this configuration.
+- **Algorithmic correctness:** 5 of 7 stub-listed requirements DONE in PR #1 (subclass, GQA, stateful per-layer/sequence, fp32 norms, mean-removal). 1 partial (paged KV layout — Phase E). 1 inherited (int16 indices).
+- **Bug fixes shipped to master:** `e8_lattice.nearest_d8` argmin → argmax (commit `2ba205b`); 935-LOC docstring-sketch `vllm_integration.py` → 168-LOC honest stub (commit `a97abd6`); `qwen3.5-27` config corrected to 64/4/256, `qwen3.6-27` added.
+
+**Honest claim retractions surfaced by the review (not yet applied — queued):**
+- "E8 lattice VQ" results were obtained with half-integer scalar quantisation, not actual E8. `nearest_e8_relaxed` should be relabelled.
+- "PPL 9410 → 7.90 with mean-removal" likely held only at full-prefill; the autoregressive `residual_quant.py:382-397` has a softmax shift-invariance bug.
+- README quickstart code does not run (every kwarg wrong).
+- CLAUDE.md says "All source files in turboquantdc/ and tests/ are empty stubs" — repo is at v0.3.0 with 67 modules, 43 test files.
+
+**Next-session queue:** real benchmarks on freed VRAM (kill `uvicorn :8110` for +1.86 GiB) → mean-removal autoregressive fix → README/CLAUDE.md/E8 retraction wording → Phase E paged-layout integration → Phase F vLLM backend registration.
+
+**Disabled scheduled routine:** `trig_01ViWwvugsYBVvkeF9dptwks` (Sonnet 4.6 fallback for Phase D — disabled because we did Phase D locally on Opus 4.7). Re-enable from https://claude.ai/code/routines if useful.
+
+---
+
+## Original handoff (Updated April 15, 2026)
 
 ## The One Thing That Matters
 
