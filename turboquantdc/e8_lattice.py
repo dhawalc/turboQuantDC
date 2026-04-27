@@ -33,32 +33,35 @@ def nearest_d8(x: torch.Tensor) -> torch.Tensor:
 
     D8 = {v ∈ Z^8 : sum(v) is even}
 
-    Algorithm:
-    1. Round each coordinate to nearest integer
-    2. If sum is odd, flip the coordinate with smallest rounding margin
+    Algorithm (corrected 2026-04-27 per code review #3 CRIT-1):
+    1. Round each coordinate to nearest integer.
+    2. If sum is odd, flip the coordinate with the LARGEST rounding margin
+       (the most ambiguous round). Flipping a small-margin coord adds a full
+       unit of distortion; flipping a large-margin coord adds at most 1 - 2|r|.
+       The previous implementation used argmin and could pick a zero-margin
+       coord (e.g., a coordinate that was already 0 in x), introducing a
+       full unit of error per parity correction.
     """
     rounded = torch.round(x)
-    # Check parity: sum must be even
     parity = rounded.sum(dim=-1) % 2  # 0 or 1
     needs_fix = parity != 0  # (...)
 
     if needs_fix.any():
-        # Find coordinate with smallest rounding margin
+        # Pick the coord with the LARGEST margin among coords that need
+        # fixing. Largest margin == most ambiguous round == lowest cost-to-flip.
+        # For batches that don't need fixing we mask with -inf so argmax
+        # doesn't pick them (the fix is gated by needs_fix anyway, defensive).
         margin = (x - rounded).abs()  # (..., 8)
-        # For positions that need fixing, find the coord to flip
-        # Set margin to inf for positions that don't need fixing
         margin_masked = margin.clone()
-        margin_masked[~needs_fix] = float('inf')
-        flip_coord = margin_masked.argmin(dim=-1)  # (...)
+        margin_masked[~needs_fix] = float('-inf')
+        flip_coord = margin_masked.argmax(dim=-1)  # (...)
 
-        # Flip: if x > rounded, round up instead; if x < rounded, round down
+        # Flip direction: round in the direction we 'missed'. If x > rounded
+        # (positive residual), the round was too low -> flip +1. Symmetric.
         residual = x - rounded  # (..., 8)
-        # Gather the residual at flip_coord
         flip_sign = torch.gather(residual, -1, flip_coord.unsqueeze(-1)).sign()
-        # Where sign is 0, default to +1
         flip_sign = flip_sign.where(flip_sign != 0, torch.ones_like(flip_sign))
 
-        # Apply fix only where needed
         fix = torch.zeros_like(rounded)
         fix.scatter_(-1, flip_coord.unsqueeze(-1),
                      flip_sign.where(needs_fix.unsqueeze(-1),
