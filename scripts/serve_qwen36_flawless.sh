@@ -12,12 +12,15 @@ cd "$REPO"
 
 MODEL="${MODEL:-./models/Qwen3.6-27B-AWQ-INT4}"
 PORT="${PORT:-8000}"
-MAX_MODEL_LEN="${MAX_MODEL_LEN:-8192}"
-MAX_NUM_SEQS="${MAX_NUM_SEQS:-4}"
-# Empirical: model loads at 18.17 GiB. Other GPU residents take ~3.9 GiB
-# (gnome-remote, prod, colleague, dhawal uvicorn — all UNTOUCHABLE).
-# Free GPU is ~19.6 GiB → 0.83 of 23.51 = 19.51 GiB ≤ free.
-# Leaves ~1.3 GiB after weights for KV + activations (very tight).
+MAX_MODEL_LEN="${MAX_MODEL_LEN:-2048}"
+MAX_NUM_SEQS="${MAX_NUM_SEQS:-1}"
+# Iteration history (RTX 4090, ~3.3 GiB used by untouchable other processes):
+#   0.85 → fails free-memory check (19.6 free vs 19.98 needed)
+#   0.83 + FLASHINFER → boots, OOMs on prefill workspace alloc (394 MiB short)
+#   0.78 + CPU offload 2 GiB → fails: AssertionError vLLM hybrid + offload
+#     incompatibility (https://github.com/vllm-project/vllm/pull/18298)
+# This iteration: drop max-model-len to 2K, max-num-seqs to 1, use TRITON_ATTN
+# (smaller workspace than FlashInfer), no CPU offload.
 GPU_MEM_UTIL="${GPU_MEM_UTIL:-0.83}"
 
 mkdir -p logs/2026-04-27
@@ -25,10 +28,12 @@ mkdir -p logs/2026-04-27
 echo "[$(date)] Starting vLLM server: $MODEL"
 echo "  port=$PORT max_model_len=$MAX_MODEL_LEN max_num_seqs=$MAX_NUM_SEQS gpu_mem_util=$GPU_MEM_UTIL"
 
-# --enforce-eager: skip CUDA graph capture (saves ~2 GiB at startup; throughput cost ~10-15%)
+# Settings explanation:
+# --enforce-eager: skip CUDA graph capture (saves ~2 GiB; throughput cost ~10-15%)
 # --language-model-only: skip vision encoder
-# --no-enable-prefix-caching: prefix caching adds memory; disable for tight VRAM budget
+# VLLM_ATTENTION_BACKEND=TRITON_ATTN: avoid FlashInfer prefill workspace alloc
 exec env PYTORCH_ALLOC_CONF=expandable_segments:True \
+         VLLM_ATTENTION_BACKEND=TRITON_ATTN \
     .venv-vllm/bin/vllm serve "$MODEL" \
     --kv-cache-dtype fp8_e4m3 \
     --max-model-len "$MAX_MODEL_LEN" \
