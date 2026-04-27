@@ -1,0 +1,61 @@
+{
+  "summary": {
+    "config": {
+      "url": "http://127.0.0.1:8000",
+      "model": "qwen3.6-27b",
+      "concurrency": 1,
+      "input_tokens_target": 256,
+      "output_tokens": 256,
+      "num_requests": 4,
+      "prompt_chars": 2532
+    },
+    "n_requests": 4,
+    "n_success": 4,
+    "n_failed": 0,
+    "wall_clock_s": 48.69707924098475,
+    "aggregate_decode_tps": 21.027955186646484,
+    "ttft_p50_s": 0.16024485102389008,
+    "ttft_p95_s": 0.1759704290307127,
+    "decode_tps_per_stream_p50": 21.51036539008122,
+    "decode_tps_per_stream_p95": 21.530467610606888,
+    "errors": []
+  },
+  "requests": [
+    {
+      "success": true,
+      "error": null,
+      "ttft_s": 0.16024485102389008,
+      "total_s": 12.731430496030953,
+      "n_input": 404,
+      "n_output": 256,
+      "decode_tps": 20.284514280385928
+    },
+    {
+      "success": true,
+      "error": null,
+      "ttft_s": 0.1601105239824392,
+      "total_s": 11.912537169991992,
+      "n_input": 404,
+      "n_output": 256,
+      "decode_tps": 21.69768254302324
+    },
+    {
+      "success": true,
+      "error": null,
+      "ttft_s": 0.1759704290307127,
+      "total_s": 12.01966623601038,
+      "n_input": 404,
+      "n_output": 256,
+      "decode_tps": 21.530467610606888
+    },
+    {
+      "success": true,
+      "error": null,
+      "ttft_s": 0.17839386902051046,
+      "total_s": 12.033158998005092,
+      "n_input": 404,
+      "n_output": 256,
+      "decode_tps": 21.51036539008122
+    }
+  ]
+}

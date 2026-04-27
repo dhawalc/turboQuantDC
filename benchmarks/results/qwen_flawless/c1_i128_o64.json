@@ -1,0 +1,64 @@
+{
+  "summary": {
+    "config": {
+      "url": "http://127.0.0.1:8000",
+      "model": "qwen3.6-27b",
+      "concurrency": 1,
+      "input_tokens_target": 128,
+      "output_tokens": 64,
+      "num_requests": 4,
+      "prompt_chars": 1440
+    },
+    "n_requests": 4,
+    "n_success": 0,
+    "n_failed": 4,
+    "wall_clock_s": 0.046772785019129515,
+    "aggregate_decode_tps": 0.0,
+    "ttft_p50_s": null,
+    "ttft_p95_s": null,
+    "decode_tps_per_stream_p50": null,
+    "decode_tps_per_stream_p95": null,
+    "errors": [
+      "HTTP 500: {\"error\":{\"message\":\"EngineCore encountered an issue. See stack trace (above) for the root cause.\",\"type\":\"InternalServerError\",\"param\":null,\"code\":500}}",
+      "No content tokens received"
+    ]
+  },
+  "requests": [
+    {
+      "success": false,
+      "error": "No content tokens received",
+      "ttft_s": null,
+      "total_s": 0.04448201198829338,
+      "n_input": 0,
+      "n_output": 0,
+      "decode_tps": null
+    },
+    {
+      "success": false,
+      "error": "HTTP 500: {\"error\":{\"message\":\"EngineCore encountered an issue. See stack trace (above) for the root cause.\",\"type\":\"InternalServerError\",\"param\":null,\"code\":500}}",
+      "ttft_s": null,
+      "total_s": 0.0009366660378873348,
+      "n_input": 0,
+      "n_output": 0,
+      "decode_tps": null
+    },
+    {
+      "success": false,
+      "error": "HTTP 500: {\"error\":{\"message\":\"EngineCore encountered an issue. See stack trace (above) for the root cause.\",\"type\":\"InternalServerError\",\"param\":null,\"code\":500}}",
+      "ttft_s": null,
+      "total_s": 0.0005796029581688344,
+      "n_input": 0,
+      "n_output": 0,
+      "decode_tps": null
+    },
+    {
+      "success": false,
+      "error": "HTTP 500: {\"error\":{\"message\":\"EngineCore encountered an issue. See stack trace (above) for the root cause.\",\"type\":\"InternalServerError\",\"param\":null,\"code\":500}}",
+      "ttft_s": null,
+      "total_s": 0.0005373830208554864,
+      "n_input": 0,
+      "n_output": 0,
+      "decode_tps": null
+    }
+  ]
+}
