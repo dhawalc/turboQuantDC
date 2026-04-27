@@ -1,0 +1,22 @@
+{
+  "model_path": "./models/Qwen3.6-27B-AWQ-INT4",
+  "status": "blocked_upstream",
+  "blocker": {
+    "library": "compressed-tensors==0.15.0.1",
+    "error_type": "pydantic_core._pydantic_core.ValidationError",
+    "error_message": "strategy group requires group_size to be set to a positive value (input value group_size=0)",
+    "stack_origin": "compressed_tensors.compressors.pack_quantized.base.decompress",
+    "trigger": "model.generate() prefill hook ct_decompress_hook tries to dequantize a GDN linear_attn weight whose quant args were not parsed correctly from the safetensors checkpoint"
+  },
+  "context": {
+    "model_loaded_with_warnings": true,
+    "load_warnings": "linear_attn.in_proj_a/b weights are UNEXPECTED in the checkpoint; weight_packed/weight_scale/weight_zero_point are MISSING — the GDN linear-attention layers in Qwen3.6 have a non-standard packing the cyankiwi AWQ-INT4 packaging uses",
+    "implication": "HF transformers cannot generate from this checkpoint with the current compressed-tensors version. vLLM works because it has Qwen3.6-aware loading (we verified that path on the 2026-04-27 run)."
+  },
+  "what_works_today": "vLLM 0.19.1 + this same checkpoint via scripts/serve_qwen36_flawless.sh (FP8 KV; no TurboQuant)",
+  "next_steps": [
+    "Try compressed-tensors >=0.16 or <0.15 to see if a different parser version handles the GDN packing",
+    "Or: download a non-AWQ Qwen3.6-27B weight (FP16 is 56 GB, won't fit on 4090; FP8 is 28 GB, also won't fit)",
+    "Or: build a real vLLM custom AttentionImpl backend (the actual production target) — see vllm_integration.py docstring"
+  ]
+}
