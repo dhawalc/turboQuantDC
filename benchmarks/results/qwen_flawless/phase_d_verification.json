@@ -1,0 +1,63 @@
+{
+  "model_shape": {
+    "num_heads": 24,
+    "num_kv_heads": 4,
+    "head_size": 256,
+    "num_layers": 64,
+    "gqa_factor": 6
+  },
+  "scenario": {
+    "prefill_tokens": 64,
+    "decode_steps": 16,
+    "layers_exercised": 4
+  },
+  "layers": [
+    {
+      "layer_idx": 0,
+      "layer_type": "_FP16Layer",
+      "prefill_ms": 16.8,
+      "decode_ms_total": 98.5,
+      "decode_ms_per_step": 6.15,
+      "shape_ok": true,
+      "finite": true,
+      "final_seq_len": 80,
+      "expected_seq_len": 80
+    },
+    {
+      "layer_idx": 1,
+      "layer_type": "_FP16Layer",
+      "prefill_ms": 0.2,
+      "decode_ms_total": 4.1,
+      "decode_ms_per_step": 0.25,
+      "shape_ok": true,
+      "finite": true,
+      "final_seq_len": 80,
+      "expected_seq_len": 80
+    },
+    {
+      "layer_idx": 2,
+      "layer_type": "_CompressedLayer",
+      "prefill_ms": 91.1,
+      "decode_ms_total": 47.9,
+      "decode_ms_per_step": 2.99,
+      "shape_ok": true,
+      "finite": true,
+      "final_seq_len": 80,
+      "expected_seq_len": 80
+    },
+    {
+      "layer_idx": 3,
+      "layer_type": "_CompressedLayer",
+      "prefill_ms": 38.4,
+      "decode_ms_total": 46.7,
+      "decode_ms_per_step": 2.92,
+      "shape_ok": true,
+      "finite": true,
+      "final_seq_len": 80,
+      "expected_seq_len": 80
+    }
+  ],
+  "all_passed": true,
+  "gpu_memory_allocated_mib": 16.1,
+  "gpu_peak_memory_mib": 23.5
+}
