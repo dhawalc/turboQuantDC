@@ -23,11 +23,18 @@ MANIFEST
 # Virtual environments
 .env
 .venv
+.venv-vllm/
 env/
 venv/
 ENV/
 env.bak/
 venv.bak/
+
+# Local model weights (large; downloaded artifacts)
+models/
+
+# Session logs (per-day)
+logs/
 
 # Testing
 .pytest_cache/
