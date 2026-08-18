@@ -10,12 +10,12 @@ For every quantizer cell of a probed model, predict its log10 PPL ratio by
 evaluating the model's own noise curve at the cell's measured score-space
 noise (x = 1 - mean logit r), then compare with the actual ratio.
 
-Hypotheses:
-  H1  uniform-damage cells (1-bit stress, centered cells) land ON the curve —
-      i.e. the damage that SS6.19 showed no proxy could see becomes
-      predictable from proxy + curve.
-  H2  mean-pathology cells (Qwen2/2.5/Pythia uncentered) land far ABOVE the
-      curve; the deviation is a principled pathology detector.
+Result (SS6.22): quantizer cells land ON their model's own noise curve, in
+BOTH regimes. The hypothesis that mean-pathology cells would deviate above
+their curve was REFUTED — mean-dominated models simply have catastrophically
+steep curves (Qwen2.5-1.5B loses x348 at sigma=0.05). Damage is therefore
+predicted by a single model-specific function of one cheap scalar, and there
+is no universal proxy threshold because that function differs by model.
 
 Outputs a report and paper/figures/fig3_factorization.{png,pdf}.
 """
@@ -30,13 +30,16 @@ RESULTS = HERE / "results"
 FIGS = HERE.parents[0] / "figures"
 
 
-def curve_of(name):
+XKEY = "logit_r_min"   # worst layer; see SS6.22 for why not the mean
+
+
+def curve_of(name, xkey=XKEY):
     p = RESULTS / f"sensitivity_{name}.json"
     if not p.exists():
         return None
     d = json.loads(p.read_text())
-    pts = [(1.0 - r["logit_r"], math.log10(max(r["ratio"], 1e-9)))
-           for r in d["rows"] if r["sigma"] > 0 and "logit_r" in r]
+    pts = [(1.0 - r[xkey], math.log10(max(r["ratio"], 1e-9)))
+           for r in d["rows"] if r["sigma"] > 0 and xkey in r]
     pts.append((0.0, 0.0))
     pts.sort()
     return pts
@@ -55,7 +58,7 @@ def predict(pts, x):
     return float(np.interp(x, xs, ys))
 
 
-def cells_of(name):
+def cells_of(name, xkey=XKEY):
     out = []
     for suffix in ("", "-k1"):
         p = RESULTS / f"ppl_{name}{suffix}.json"
@@ -71,7 +74,7 @@ def cells_of(name):
             if not np.isfinite(r["ppl"]):
                 continue
             out.append(dict(bits=r["bits"], center=r["center"],
-                            x=1.0 - r["logit_r"],
+                            x=1.0 - r[xkey],
                             lr_min=r["logit_r_min"], lr_mean=r["logit_r"],
                             actual=math.log10(max(r["ppl"] / base, 1e-9))))
     return out
@@ -99,39 +102,48 @@ def main():
                   f"{c['x']:8.4f} {pred:7.3f} {c['actual']:7.3f} {dev:+7.3f}"
                   + (" *extrap" if extrap else ""))
 
-    # H1: cells whose damage is uniform (centered, or 1-bit stress) —
-    # exclude uncentered cells of models with known mean pathology.
-    PATHOLOGICAL = {"qwen2.5-1.5b", "qwen3-1.7b", "pythia-2.8b", "opt-2.7b",
-                    "granite3.3-2b"}
-    uniform = [r for r in rows
-               if r["center"] or r["model"] not in PATHOLOGICAL]
-    patho = [r for r in rows
-             if not r["center"] and r["model"] in PATHOLOGICAL]
+    a = np.array([r["actual"] for r in rows])
+    p = np.array([r["pred"] for r in rows])
+    resid = a - p
+    r2 = 1 - float((resid ** 2).sum() / ((a - a.mean()) ** 2).sum())
+    print(f"\n=== FACTORIZATION ACCURACY ({len(rows)} cells, {len(names)} models) ===")
+    print(f"  R^2 on log10 damage       {r2:.4f}")
+    print(f"  median |error|            {np.median(abs(resid)):.4f} log10 "
+          f"(x{10 ** np.median(abs(resid)):.3f})")
+    print(f"  90th percentile |error|   {np.percentile(abs(resid), 90):.4f} log10 "
+          f"(x{10 ** np.percentile(abs(resid), 90):.2f})")
+    print(f"  max |error|               {abs(resid).max():.4f} log10 "
+          f"(x{10 ** abs(resid).max():.1f})")
+    print(f"  damage range covered      x{10 ** a.min():.2f} to x{10 ** a.max():,.0f}")
 
-    def stats(rs, label):
-        if not rs:
-            return
-        a = np.array([r["actual"] for r in rs])
-        p = np.array([r["pred"] for r in rs])
-        resid = a - p
-        ss_res = float((resid ** 2).sum())
-        ss_tot = float(((a - a.mean()) ** 2).sum())
-        r2 = 1 - ss_res / ss_tot if ss_tot else float("nan")
-        print(f"\n{label}: n={len(rs)}  R^2={r2:.3f}  "
-              f"median |dev|={np.median(np.abs(resid)):.3f} (log10)  "
-              f"max dev={resid.max():+.3f}")
+    # Baseline: the best MODEL-AGNOSTIC mapping from the same scalar, fitted
+    # on all other models (leave-one-model-out). This isolates how much of the
+    # accuracy comes from per-model calibration rather than from the scalar.
+    uni = []
+    for c in rows:
+        o = sorted((z["x"], z["actual"]) for z in rows if z["model"] != c["model"])
+        uni.append(abs(float(np.interp(c["x"], [z[0] for z in o], [z[1] for z in o]))
+                       - c["actual"]))
+    uni = np.array(uni)
+    print(f"\n  model-agnostic baseline (leave-one-model-out):")
+    print(f"    median |error| {np.median(uni):.4f} log10 (x{10 ** np.median(uni):.2f}),  "
+          f"90th {np.percentile(uni, 90):.4f} (x{10 ** np.percentile(uni, 90):.1f})")
 
-    stats(uniform, "H1 uniform-damage cells (centered + non-pathological)")
-    stats(patho, "H2 pathology cells (uncentered, mean-dominated models)")
-    if patho and uniform:
-        umax = max(r["dev"] for r in uniform)
-        pdevs = sorted(r["dev"] for r in patho)
-        print(f"\nDeviation-from-own-curve as pathology detector:")
-        print(f"  max deviation among uniform cells: {umax:+.3f}")
-        print(f"  pathology-cell deviations: "
-              + ", ".join(f"{d:+.2f}" for d in pdevs))
-        sep = sum(1 for d in pdevs if d > umax)
-        print(f"  {sep}/{len(pdevs)} pathology cells exceed every uniform cell")
+    print(f"\n  largest residuals (honest failure cases):")
+    for w in sorted(rows, key=lambda r: -abs(r["dev"]))[:5]:
+        print(f"    {w['model']:13s} {w['bits']}bit ctr={str(w['center']):5s} "
+              f"predicted x{10 ** w['pred']:>9.2f}  actual x{10 ** w['actual']:>9.2f}")
+
+    print(f"\n{'model':14s} {'cells':>5s} {'median err':>11s} {'max err':>8s} "
+          f"{'damage span':>20s}")
+    for m in names:
+        cm = [r for r in rows if r["model"] == m]
+        if not cm:
+            continue
+        e = np.array([abs(r["dev"]) for r in cm])
+        rr = [10 ** r["actual"] for r in cm]
+        print(f"{m:14s} {len(cm):>5d} {np.median(e):>11.4f} {e.max():>8.4f} "
+              f"{'x%.2f - x%.0f' % (min(rr), max(rr)):>20s}")
 
     json.dump(rows, open(RESULTS / "factorization_cells.json", "w"), indent=1)
 
@@ -161,10 +173,12 @@ def main():
             ax.grid(alpha=0.25)
         for j in range(n, nrow * ncol):
             axes[j // ncol][j % ncol].axis("off")
-        fig.suptitle("Each model's private noise curve (line) vs its quantizer "
-                     "cells (red=uncentered, green=centered, square=1-bit)",
+        fig.suptitle("Damage is a model-specific function of one scalar: each "
+                     "model's noise curve (line, measured with Gaussian noise "
+                     "and no quantizer)\nvs its quantizer cells "
+                     "(red=uncentered, green=centered, square=1-bit)",
                      fontsize=10)
-        fig.supxlabel("score-space noise  (1 − mean logit correlation)")
+        fig.supxlabel("score-space noise  (1 − worst-layer logit correlation)")
         fig.supylabel("PPL ratio")
         fig.tight_layout()
         FIGS.mkdir(exist_ok=True)

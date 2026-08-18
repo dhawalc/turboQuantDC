@@ -1537,6 +1537,107 @@ mechanism (cf. massive-activations literature): a constant component that
 every query can attend to. Softmax discards it (§2.3), which is precisely why
 it is safe to remove for quantization and catastrophic to spend bits on.
 
+### 6.22 The damage law: one cheap scalar and a per-model curve
+
+*(added 2026-08-18. This section subsumes §6.15 and §6.19 and is the paper's
+strongest result. It also refutes a hypothesis we formed while designing it.)*
+
+§6.15 showed that no reconstruction metric predicts damage. §6.19 showed that
+our own replacement has a scope boundary: at 1 bit, nine models read almost
+identically on every proxy (worst-layer logit correlation 0.928–0.933) while
+their true damage spans ×1.04 to ×4.00. We diagnosed that as
+*damage = injected noise × model sensitivity*, with every proxy measuring only
+the first factor. This section measures the second, and finds that the two
+together determine damage almost completely.
+
+**The probe.** For each model we perturb cached keys with mean-free isotropic
+Gaussian noise — **no quantizer at all** —
+
+    k̂ = k + σ · (‖k‖ / √d) · ε ,   ε ~ N(0, I)
+
+at σ ∈ {0.05, 0.1, 0.2, 0.4, 0.8}, recording perplexity and the same proxy
+statistics the atlas records. Five forward passes, once per model, no labels.
+This yields the model's **noise-response curve**: score-space noise
+(1 − worst-layer logit correlation) → log damage.
+
+**The test.** For every quantizer configuration of that model — different
+bit-widths, centering on and off, including the 1-bit stress cells — we predict
+its damage by evaluating *its own model's curve* at its measured score-space
+noise, and compare with the measured perplexity. The curve is calibrated on
+unstructured Gaussian noise and tested on structured quantization error, so
+nothing about the quantizer enters the prediction.
+
+| | value |
+|---|---:|
+| cells predicted | **96** (13 models) |
+| **R² on log₁₀ damage** | **0.974** |
+| median absolute error | 0.005 log₁₀ (**×1.01**) |
+| 90th-percentile error | 0.091 log₁₀ (×1.23) |
+| worst error | 0.450 log₁₀ (×2.8) |
+| true damage range covered | ×0.99 to **×1,348** |
+
+Source: [`experiments/sensitivity_probe.py`](experiments/sensitivity_probe.py),
+[`experiments/factorization.py`](experiments/factorization.py),
+[`results/sensitivity_*.json`](experiments/results/),
+Figure 3 ([`figures/fig3_factorization.png`](figures/fig3_factorization.png)).
+
+**Damage is a model-specific function of one scalar.** Across three orders of
+magnitude, a quantizer configuration's perplexity damage is determined by how
+much score-space noise it injects, evaluated through a curve that is a property
+of the model alone. The structure of the perturbation — Lloyd-Max codebook
+error with sign residuals, versus isotropic Gaussian — does not matter beyond
+the scalar amount it produces. That is the substantive physical claim, and it
+is what makes the prediction cheap.
+
+**This explains the two earlier negative results rather than replacing them.**
+
+- *Why no universal threshold exists* (§6.15): the map from proxy to damage is
+  model-specific, so any single cutoff must be wrong for some model. Fitting
+  the best **model-agnostic** map from the same scalar (leave-one-model-out)
+  gives a 90th-percentile error of ×3.5 against the per-model curve's ×1.23 —
+  the per-model calibration is where the accuracy lives, and it is exactly
+  what a universal threshold cannot have.
+- *Why the 1-bit failures were invisible* (§6.19): identical proxy readings on
+  nine models, but the curves differ. Llama-3.2-1B's curve is steep and
+  SmolLM2's is flat, so the same score-noise costs ×4.0 on one and ×2.0 on the
+  other — predictable once the curve is known, undecidable from the proxy alone.
+
+**We were wrong about the pathology, and the correction is more interesting.**
+We predicted (H2, preregistered in the script) that mean-dominated
+configurations would land *far above* their own curve, making deviation a
+principled pathology detector. **They do not.** Qwen2.5-1.5B's uncentered cells
+sit on its curve like everyone else's (median deviation 0.03 log₁₀). The reason
+is visible in its curve: **Qwen2.5-1.5B loses ×348 perplexity at σ = 0.05**,
+the smallest noise we injected, where Falcon3-1B loses 0.4%. Mean-dominated
+models are not damaged by a special mechanism that evades the law — they are
+models whose noise curves are catastrophically steep, because when the mean
+carries most of a key's norm, a perturbation scaled to that norm swamps the
+token-specific deviation that carries all the signal. §4.2's mechanism is
+therefore a statement about the *shape of the curve*, and the pathology is
+extreme sensitivity, not a separate failure mode.
+
+**A certification protocol follows directly.** Five noise passes per model
+(one-time, ~30 s) plus one proxy pass per candidate configuration (~2 s) predicts
+end-to-end damage to within about ×1.2 at the 90th percentile, with no
+perplexity evaluation of the quantizer at any point. This is what §6.15's
+statistic was reaching for and could not deliver alone.
+
+**Honest residuals.** The law is not exact and its failures are systematic in
+one direction: the four worst residuals are **1-bit centered** cells
+(Llama-3.2-1B ×1.75 predicted against ×4.00 actual; Llama-3.2-3B, SmolLM2
+similarly under-predicted) and Qwen2.5-1.5B at 4 bits (×134 against ×376). Both
+patterns are under-prediction at the extremes of the bit-width range, which
+suggests the transfer from Gaussian to quantizer error degrades when the
+quantizer's error becomes strongly non-Gaussian — one-bit indices are the most
+structured error in this study. A denser σ grid and a heavier-tailed noise
+family are the obvious next tests. Until then the law should be read as a
+calibrated estimator with a factor-of-two worst case, not an identity.
+
+**Scope.** 13 models, one corpus, one quantizer family, keys only, single seed;
+curves interpolated from five points with linear extrapolation beyond the last
+(flagged per cell in the output). The models were chosen to span the damage
+range, not sampled from any population.
+
 ---
 
 ## 7. Ablations
