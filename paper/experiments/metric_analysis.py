@@ -53,6 +53,11 @@ def collect():
                 continue
             if not np.isfinite(r["ppl"]):
                 continue
+            pl = list(r.get("per_layer_logit_r", {}).values())
+            # damage compounds through depth: if each layer preserves a
+            # fraction r_l of logit structure, end-to-end survival ~ prod r_l.
+            prod = float(np.exp(sum(math.log(max(x, 1e-6)) for x in pl))) if pl else float("nan")
+            geo = float(prod ** (1.0 / len(pl))) if pl else float("nan")
             rows.append(dict(
                 model=d["name"], kv_heads=d.get("kv_heads"),
                 head_dim=d.get("head_dim"), bits=r["bits"], center=r["center"],
@@ -60,6 +65,7 @@ def collect():
                 damage=math.log10(max(r["ppl"] / base, 1e-9)),
                 vec_cos=r["vec_cos"], vec_cos_min=r.get("vec_cos_min", r["vec_cos"]),
                 logit_r=r["logit_r"], logit_r_min=r["logit_r_min"],
+                logit_r_prod=prod, logit_r_geo=geo, n_layers=len(pl),
                 spread=r["spread"], spread_min=r.get("spread_min")))
     return rows
 
@@ -77,6 +83,8 @@ def main():
         "vec_cos (mean)":       [r["vec_cos"] for r in rows],
         "logit_r (mean)":       [r["logit_r"] for r in rows],
         "logit_r (WORST layer)": [r["logit_r_min"] for r in rows],
+        "logit_r (PRODUCT)":    [r["logit_r_prod"] for r in rows],
+        "logit_r (geo mean)":   [r["logit_r_geo"] for r in rows],
         "spread ratio":         [r["spread"] for r in rows],
     }
     print(f"\n{'proxy':24s} {'Spearman':>10s} {'Pearson':>9s}   (vs log10 ppl ratio)")
@@ -110,55 +118,58 @@ def main():
                   f"vec_cos={r['vec_cos']:.4f}  logit_r_min={r['logit_r_min']:.4f}  "
                   f"ppl x{r['ratio']:.1f}")
 
-        # Is there a threshold on worst-layer logit_r that cleanly separates?
-        # candidate thresholds are MIDPOINTS between observed values, so a
-        # clean separating gap is actually reachable (using observed values as
-        # thresholds can never sit strictly inside the gap)
-        obs = sorted({r["logit_r_min"] for r in rows})
-        vals = [(a + b) / 2 for a, b in zip(obs, obs[1:])] + [obs[-1] + 1e-6]
-        best = None
-        for t in vals:
-            tp = sum(1 for r in rows if r["logit_r_min"] < t and r["ratio"] > BROKEN)
-            fp_ = sum(1 for r in rows if r["logit_r_min"] < t and r["ratio"] <= BROKEN)
-            fn = sum(1 for r in rows if r["logit_r_min"] >= t and r["ratio"] > BROKEN)
-            err = fp_ + fn
-            if best is None or err < best[1]:
-                best = (t, err, tp, fp_, fn)
-        t, err, tp, fp_, fn = best
-        print(f"\nBest single threshold on WORST-layer logit_r: {t:.4f}")
-        print(f"  misclassified {err}/{len(rows)} cells "
-              f"(false alarms {fp_}, missed breakages {fn})")
-        bmax = max(r["logit_r_min"] for r in broken)
-        gmin = min(r["logit_r_min"] for r in fine)
-        if bmax < gmin:
-            print(f"  separating gap: worst broken {bmax:.4f} < best-fine floor "
-                  f"{gmin:.4f}  (any threshold in between is perfect)")
-
-        # Held-out validation: fit the threshold on Qwen2.5 only (the family the
-        # failure was discovered on) and test it on everything else. This is the
-        # honest test of whether the proxy generalizes or was tuned to the data.
+        # For each proxy: best single threshold on ALL cells, plus a
+        # held-out test (threshold fitted on Qwen2.5 only, tested on the rest).
+        # Candidate thresholds are MIDPOINTS between observed values so a clean
+        # separating gap is actually reachable.
         fit = [r for r in rows if r["model"].startswith("qwen2.5")]
         held = [r for r in rows if not r["model"].startswith("qwen2.5")]
-        if fit and held and any(r["ratio"] > BROKEN for r in fit):
-            fb = max(r["logit_r_min"] for r in fit if r["ratio"] > BROKEN)
-            fg = min(r["logit_r_min"] for r in fit if r["ratio"] <= BROKEN)
-            thr = (fb + fg) / 2
-            err = sum(1 for r in held
-                      if (r["logit_r_min"] < thr) != (r["ratio"] > BROKEN))
-            hb = sum(1 for r in held if r["ratio"] > BROKEN)
-            print(f"\nHELD-OUT VALIDATION (fit on Qwen2.5, test on everything else)")
-            print(f"  threshold fitted on Qwen2.5 only: {thr:.4f}")
-            print(f"  held-out cells: {len(held)} across "
-                  f"{len({r['model'] for r in held})} models ({hb} truly broken)")
-            print(f"  misclassified: {err}/{len(held)}")
-            # the same test for cosine, using its own best in-family threshold
-            cb = max(r["vec_cos"] for r in fit if r["ratio"] > BROKEN)
-            cg = min(r["vec_cos"] for r in fit if r["ratio"] <= BROKEN)
-            cthr = (cb + cg) / 2
-            cerr = sum(1 for r in held
-                       if (r["vec_cos"] < cthr) != (r["ratio"] > BROKEN))
-            print(f"  same procedure with vec_cos (threshold {cthr:.4f}): "
-                  f"{cerr}/{len(held)} misclassified")
+        hb = sum(1 for r in held if r["ratio"] > BROKEN)
+        print(f"\nTHRESHOLD BATTERY (broken = ratio > {BROKEN}x; "
+              f"held-out = {len(held)} cells on {len({r['model'] for r in held})} "
+              f"non-Qwen2.5 models, {hb} truly broken)")
+        print(f"{'proxy':24s} {'best thr':>9s} {'errors':>9s} {'gap?':>16s} "
+              f"{'held-out thr':>13s} {'held-out err':>13s}")
+        print("-" * 92)
+        for k, v in proxies.items():
+            obs = sorted(set(v))
+            vals = [(a + b) / 2 for a, b in zip(obs, obs[1:])] + [obs[-1] + 1e-6]
+            best = None
+            for t in vals:
+                e = sum(1 for i, r in enumerate(rows)
+                        if (v[i] < t) != (r["ratio"] > BROKEN))
+                if best is None or e < best[1]:
+                    best = (t, e)
+            bmax = max(v[i] for i, r in enumerate(rows) if r["ratio"] > BROKEN)
+            gmin = min(v[i] for i, r in enumerate(rows) if r["ratio"] <= BROKEN)
+            gap = (f"{bmax:.4f}<{gmin:.4f}" if bmax < gmin else "overlap")
+            ho = ""
+            hoe = ""
+            if fit and held and any(r["ratio"] > BROKEN for r in fit):
+                iv = {id(r): v[i] for i, r in enumerate(rows)}
+                fb = max(iv[id(r)] for r in fit if r["ratio"] > BROKEN)
+                fg = min(iv[id(r)] for r in fit if r["ratio"] <= BROKEN)
+                thr = (fb + fg) / 2
+                err = sum(1 for r in held
+                          if (iv[id(r)] < thr) != (r["ratio"] > BROKEN))
+                ho = f"{thr:.4f}"
+                hoe = f"{err}/{len(held)}"
+            print(f"{k:24s} {best[0]:9.4f} {best[1]:>4d}/{len(rows):<4d} "
+                  f"{gap:>16s} {ho:>13s} {hoe:>13s}")
+
+        # Which broken cells does each proxy FALSELY PASS at its best threshold?
+        print("\nFalse passes (broken cells above each proxy's best threshold):")
+        for k, v in proxies.items():
+            obs = sorted(set(v))
+            vals = [(a + b) / 2 for a, b in zip(obs, obs[1:])] + [obs[-1] + 1e-6]
+            best = min(vals, key=lambda t: sum(
+                1 for i, r in enumerate(rows) if (v[i] < t) != (r["ratio"] > BROKEN)))
+            fps = [(rows[i], v[i]) for i, r in enumerate(rows)
+                   if r["ratio"] > BROKEN and v[i] >= best]
+            if fps:
+                s = ", ".join(f"{r['model']}/{r['bits']}b/ctr={r['center']} "
+                              f"(x{r['ratio']:.1f}, {val:.4f})" for r, val in fps)
+                print(f"  {k}: {s}")
 
     print("\nPer-cell detail (sorted by true damage):")
     print(f"{'model':16s} {'bits':>4s} {'ctr':>5s} {'ppl':>12s} {'ratio':>10s} "

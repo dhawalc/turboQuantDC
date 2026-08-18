@@ -196,8 +196,19 @@ softmax_i(q · k_i) = softmax_i(q · δ_i)
 
 The common component contributes nothing to the attention distribution. What is
 new in this report is not the technique but the **magnitude and character of the
-failure it prevents** in a specific pipeline, and the observed dependence on
-KV-head count.
+failure it prevents** in a specific pipeline, and the diagnosis of *which models*
+need it and why.
+
+Concrete precedents, verified online 2026-08-18: mean-removed vector quantization
+is classical (Gersho & Gray's textbook treats it as a standard VQ variant), and
+**NSNQuant** (arXiv:2505.18231, May 2025) applies channel-wise centering ("Shift")
+between two token-wise normalizations followed by a Hadamard transform,
+specifically so that KV vectors match a standard-normal codebook without
+calibration. NSNQuant is prior art for centering-before-VQ as a technique. What it
+does not contain is this paper's diagnostic content: it does not identify
+mean-dominance as a family-specific pathology, does not measure ρ_h on any model,
+and does not report that the intervention is the difference between ×1,416 and
+×1.03 on one family while being nearly free on others.
 
 ### 2.4 Qwen attention architecture
 
@@ -218,17 +229,69 @@ not enough to establish a law.
 
 Relevant prior work includes: per-channel and outlier-aware KV quantization
 (KVQuant); tuning-free asymmetric per-channel key / per-token value quantization
-(KIVI); the QJL 1-bit residual sign transform; and rotation-based quantization
+(KIVI); the QJL 1-bit residual sign transform; rotation-based quantization
 methods that use Hadamard or learned orthogonal transforms to make activation
-distributions more quantization-friendly (QuaRot, SpinQuant). The observation that
+distributions more quantization-friendly (QuaRot, SpinQuant, RotateKV); and
+layer-wise sensitivity-aware bit allocation (KVTuner). The observation that
 transformer activations contain a small number of very-large-magnitude,
 persistent, channel-aligned components (massive activations; attention sinks) is
 the closest existing explanation for why a large shared key component would exist
 at all.
 
-Our contribution is orthogonal to these methods: it is a diagnosis of a specific
-failure mode and a report of a strong, previously undocumented dependence on
-KV-head count.
+**Score-space evaluation is also not new as a concept.** KIVI already reported
+"attention score error" alongside reconstruction error when comparing quantization
+axes; HeadQ (arXiv:2605.03562, since withdrawn by its author) proposed
+Fisher/score-space error explicitly because it "predicts attention KL far better
+than raw key MSE"; and a June-2026 study of alignment under KV quantization
+(arXiv:2606.09864) reports model-specific failures "invisible to standard
+metrics". What we add to this thread is not the idea that score space is the right
+place to look, but the **paired, end-to-end falsification at scale**: 100+
+(model, bit-width, centering) cells in which the same forward pass records both
+the proxy metrics and the true perplexity, showing that the cosine criterion this
+project itself started with certifies configurations that raise perplexity 376×
+and rejects configurations that cost 7%, while a worst-layer logit-correlation
+threshold transfers across families — together with a measured scope boundary
+where every tested proxy fails (§6.19).
+
+Our contribution relative to these methods is therefore diagnostic rather than
+algorithmic: a mechanism for *why* one family collapses (measured, then verified
+causally by injection), a quantification of what the classical fix is worth (about
+four bits), and a validated-and-bounded cheap predictor of real damage.
+
+### 2.6 Independent observations of the same phenomenon
+
+*(added 2026-08-18 after an online prior-art search; none of the following
+parties has any connection to this project)*
+
+The core observations of this paper have been independently reproduced in public,
+with different quantizers, before we found them ourselves or concurrently with us:
+
+- **llama.cpp issue #21385** (user SCJedi, 2026-04-03) reports q4_0 KV cache
+  "completely lossless" on hybrid-attention Qwen3.5 (BLEU 1.000) — consistent
+  with our finding that the Qwen3.5 generation is immune — and proposes per-head
+  entropy-adaptive bit allocation for standard models.
+- **In the same thread** (user jagmarques, 2026-05-05): on Qwen2.5-7B, 3-bit keys
+  / 2-bit values with first- and last-layer FP16 protection gives +0.84% PPL, but
+  *removing the layer protection blows perplexity from 6.12 to ~3,300* (×540) —
+  an independent measurement of the same catastrophic key-quantization failure,
+  in a different codebase, with a different quantizer. The same commenter reports
+  Mistral-7B at +0.31% under the identical protection-off setting — an independent
+  observation of the family-specificity. Notably, first-layer protection is
+  exactly what our worst-layer analysis (§6.9, §6.15) predicts should matter for
+  Qwen2.5-7B, whose damage concentrates at layer 0.
+- **In the same thread** (user sztlink, 2026-05-06): a KLD-based check of the
+  q4_0 claim scores "close" (98.81) while a trajectory-preservation harness rates
+  the same configuration degraded — an independent sighting of the central metric
+  theme of this paper, that fidelity measures of different granularity disagree
+  about KV-cache damage.
+- **AXELRAM** (arXiv:2604.02638, April 2026) reports "catastrophic spikes" on
+  Qwen2.5-3B under sign-pattern perturbations of the KV cache while LLaMA-3.1-8B
+  is "fully stable" under the same treatment, correlating the fragility with
+  layer-wise norm heterogeneity.
+
+We record these because convergent evidence from independent implementations is
+worth more than any additional experiment we could run ourselves. Permalink:
+[ggml-org/llama.cpp#21385](https://github.com/ggml-org/llama.cpp/issues/21385).
 
 ---
 
@@ -1623,38 +1686,69 @@ cached; the checkpoints themselves are roughly 15 GB and 6 GB for 7B and 3B.
 
 ## References
 
-> All entries require verification against the published record before external
-> circulation. `[verify]` marks entries whose venue, year, or identifier could not
-> be confirmed offline.
+> Every arXiv identifier below was verified against the arXiv API on
+> 2026-08-18: all IDs resolve and titles and first authors match. `[verify]` now
+> marks only claims the API cannot confirm — conference-venue attributions and
+> the print-era references (Lloyd, Max, Gersho & Gray).
 
 1. Zandieh, A., et al. *TurboQuant: Online Vector Quantization with Near-optimal
-   Distortion Rate.* arXiv:2504.19874, 2025. `[verify — venue listed elsewhere in
-   this repository as ICLR 2026]`
+   Distortion Rate.* arXiv:2504.19874, 2025. ID and title verified; the ICLR 2026 venue
+   attribution used elsewhere in this repository remains unverified.
 2. Zandieh, A., Daliri, M., Han, I. *QJL: 1-Bit Quantized JL Transform for KV Cache
-   Quantization with Zero Overhead.* arXiv:2406.03482, 2024. `[verify]`
+   Quantization with Zero Overhead.* arXiv:2406.03482, 2024.
 3. Liu, Z., et al. *KIVI: A Tuning-Free Asymmetric 2bit Quantization for KV Cache.*
-   ICML, 2024. arXiv:2402.02750. `[verify]`
+   ICML, 2024 `[verify venue]`. arXiv:2402.02750.
 4. Hooper, C., et al. *KVQuant: Towards 10 Million Context Length LLM Inference with
-   KV Cache Quantization.* NeurIPS, 2024. arXiv:2401.18079. `[verify]`
+   KV Cache Quantization.* NeurIPS, 2024 `[verify venue]`. arXiv:2401.18079.
 5. Ashkboos, S., et al. *QuaRot: Outlier-Free 4-Bit Inference in Rotated LLMs.*
-   arXiv:2404.00456, 2024. `[verify]`
+   arXiv:2404.00456, 2024.
 6. Liu, Z., et al. *SpinQuant: LLM Quantization with Learned Rotations.*
-   arXiv:2405.16406, 2024. `[verify]`
+   arXiv:2405.16406, 2024.
 7. Sun, M., Chen, X., Kolter, J. Z., Liu, Z. *Massive Activations in Large Language
-   Models.* arXiv:2402.17762, 2024. `[verify]`
+   Models.* arXiv:2402.17762, 2024.
 8. Xiao, G., Tian, Y., Chen, B., Han, S., Lewis, M. *Efficient Streaming Language
-   Models with Attention Sinks.* ICLR, 2024. arXiv:2309.17453. `[verify]`
+   Models with Attention Sinks.* ICLR, 2024 `[verify venue]`. arXiv:2309.17453.
 9. Ainslie, J., et al. *GQA: Training Generalized Multi-Query Transformer Models
-   from Multi-Head Checkpoints.* EMNLP, 2023. arXiv:2305.13245. `[verify]`
-10. Qwen Team. *Qwen2.5 Technical Report.* arXiv:2412.15115, 2024. `[verify]`
+   from Multi-Head Checkpoints.* EMNLP, 2023 `[verify venue]`. arXiv:2305.13245.
+10. Qwen Team. *Qwen2.5 Technical Report.* arXiv:2412.15115, 2024.
 10b. Qwen Team. *Qwen3 Technical Report.* arXiv:2505.09388, 2025. Source for the
     claim in §6.6 that Qwen3 removes the QKV-bias used in Qwen2 and introduces
-    QK-Norm. `[verify]`
+    QK-Norm.
 11. Merity, S., Xiong, C., Bradbury, J., Socher, R. *Pointer Sentinel Mixture
-    Models.* arXiv:1609.07843, 2016. `[verify]`
+    Models.* arXiv:1609.07843, 2016.
 12. Dettmers, T., Pagnoni, A., Holtzman, A., Zettlemoyer, L. *QLoRA: Efficient
-    Finetuning of Quantized LLMs.* NeurIPS, 2023. arXiv:2305.14314. `[verify]`
+    Finetuning of Quantized LLMs.* NeurIPS, 2023 `[verify venue]`. arXiv:2305.14314.
 13. Lloyd, S. P. *Least Squares Quantization in PCM.* IEEE Transactions on
     Information Theory, 28(2):129–137, 1982. `[verify]`
 14. Max, J. *Quantizing for Minimum Distortion.* IRE Transactions on Information
     Theory, 6(1):7–12, 1960. `[verify]`
+15. *(verified online 2026-08-18)* NSNQuant: A Double Normalization Approach for
+    Calibration-Free Low-Bit Vector Quantization of KV Cache. arXiv:2505.18231,
+    2025. Prior art for channel-wise centering before KV vector quantization
+    (§2.3).
+16. *(verified online 2026-08-18)* RotateKV: Accurate and Robust 2-Bit KV Cache
+    Quantization for LLMs via Outlier-Aware Adaptive Rotations. arXiv:2501.16383,
+    2025.
+17. *(verified online 2026-08-18)* KVTuner: Sensitivity-Aware Layer-Wise
+    Mixed-Precision KV Cache Quantization for Efficient and Nearly Lossless LLM
+    Inference. arXiv:2502.04420, 2025.
+18. *(verified online 2026-08-18)* Ruiz Williams, J. L. HeadQ: Model-Visible
+    Distortion and Score-Space Correction for KV-Cache Quantization.
+    arXiv:2605.03562, 2026. **Withdrawn by its author**; cited only as evidence
+    that score-space error metrics for KV quantization were proposed
+    independently (§2.5).
+19. *(verified online 2026-08-18)* AXELRAM: Quantize Once, Never Dequantize.
+    arXiv:2604.02638, 2026. Independent report of Qwen2.5-3B-specific
+    catastrophic instability under KV-cache perturbation (§2.6).
+20. *(verified online 2026-08-18)* Alignment Collapse Under KV Cache
+    Quantization: Diagnosis and Mitigation. arXiv:2606.09864, 2026. Independent
+    report of model-specific KV-quantization failures invisible to standard
+    metrics (§2.5).
+21. Gersho, A., Gray, R. M. *Vector Quantization and Signal Compression.* Kluwer,
+    1992. Classical treatment of mean-removed vector quantization (§2.3).
+    `[verify edition]`
+22. *(observed online 2026-08-18)* ggml-org/llama.cpp issue #21385 and its
+    comment thread: independent measurements of Qwen2.5-7B catastrophic key-cache
+    quantization failure, Mistral-7B immunity, and Qwen3.5 q4_0 losslessness in a
+    different codebase (§2.6).
+    https://github.com/ggml-org/llama.cpp/issues/21385
