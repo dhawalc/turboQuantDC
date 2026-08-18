@@ -30,7 +30,7 @@ Reproduction package (immutable):
 - Script — [`benchmarks/ppl_for_tom.py` @ `8f54a28`](https://github.com/dhawalc/turboQuantDC/blob/8f54a28e4a0adf139542408efb0f5972eeed1ba0/benchmarks/ppl_for_tom.py)
 - Raw results — [`benchmarks/results/ppl_for_tom.json` @ `8f18fae`](https://github.com/dhawalc/turboQuantDC/blob/8f18faef27252910c0bc70ddd87ce427e41ef107/benchmarks/results/ppl_for_tom.json)
 - Report — [`benchmarks/results/ppl_for_tom.md` @ `8f54a28`](https://github.com/dhawalc/turboQuantDC/blob/8f54a28e4a0adf139542408efb0f5972eeed1ba0/benchmarks/results/ppl_for_tom.md)
-- Analysis and limitations — [`paper/qwen_kv_quantization_failure.md`](paper/qwen_kv_quantization_failure.md)
+- Analysis and limitations — [`paper/qwen_kv_quantization_failure.md`](https://github.com/dhawalc/turboQuantDC/blob/1654b63efd3c424ecddbfa3ada98d233e81e8360/paper/qwen_kv_quantization_failure.md)
 
 ### Exact configuration being reproduced
 
@@ -41,7 +41,7 @@ experiments; neither supersedes the other.
 
 | | **Reference A** | **Reference B** |
 |---|---|---|
-| Harness | [`benchmarks/ppl_for_tom.py`](https://github.com/dhawalc/turboQuantDC/blob/8f54a28e4a0adf139542408efb0f5972eeed1ba0/benchmarks/ppl_for_tom.py) | [`paper/experiments/ppl_harness.py`](paper/experiments/ppl_harness.py) |
+| Harness | [`benchmarks/ppl_for_tom.py`](https://github.com/dhawalc/turboQuantDC/blob/8f54a28e4a0adf139542408efb0f5972eeed1ba0/benchmarks/ppl_for_tom.py) | [`paper/experiments/ppl_harness.py`](https://github.com/dhawalc/turboQuantDC/blob/1654b63efd3c424ecddbfa3ada98d233e81e8360/paper/experiments/ppl_harness.py) |
 | Date run | 2026-04-09 | 2026-08-18 |
 | Keys | 3-bit | 3-bit |
 | Values | **3-bit** | **FP16 (uncompressed)** |
@@ -139,7 +139,7 @@ the reliability and generality of individual findings can be evaluated.
 Reproductions are not required to accept the project's explanation of *why* the
 failure occurs. The reference experiment is a measurement; the proposed
 mechanism is documented separately in
-[`paper/qwen_kv_quantization_failure.md`](paper/qwen_kv_quantization_failure.md)
+[`paper/qwen_kv_quantization_failure.md`](https://github.com/dhawalc/turboQuantDC/blob/1654b63efd3c424ecddbfa3ada98d233e81e8360/paper/qwen_kv_quantization_failure.md)
 along with its limitations, including hypotheses the project has itself tested
 and refuted.
 
@@ -152,7 +152,7 @@ under "other experiment".
 
 | Experiment | Claim | Reference |
 |---|---|---|
-| Cross-architecture atlas | 72 configurations over 14 models; every catastrophic cell belongs to Qwen2.5 | [`paper/experiments/atlas_run.py`](paper/experiments/atlas_run.py) |
-| Proxy-metric validation | per-vector cosine similarity does not predict perplexity damage; worst-layer attention-logit correlation does | [`paper/experiments/metric_analysis.py`](paper/experiments/metric_analysis.py) |
-| Bit-width sweep | 2-bit corrected outperforms 6-bit uncorrected on Qwen2.5-1.5B | [`paper/experiments/results/bitsweep_qwen2.5-1.5b.json`](paper/experiments/results/bitsweep_qwen2.5-1.5b.json) |
+| Cross-architecture atlas | 72 configurations over 14 models; every catastrophic cell belongs to Qwen2.5 | [`paper/experiments/atlas_run.py`](https://github.com/dhawalc/turboQuantDC/blob/1654b63efd3c424ecddbfa3ada98d233e81e8360/paper/experiments/atlas_run.py) |
+| Proxy-metric validation | per-vector cosine similarity does not predict perplexity damage; worst-layer attention-logit correlation does | [`paper/experiments/metric_analysis.py`](https://github.com/dhawalc/turboQuantDC/blob/1654b63efd3c424ecddbfa3ada98d233e81e8360/paper/experiments/metric_analysis.py) |
+| Bit-width sweep | 2-bit corrected outperforms 6-bit uncorrected on Qwen2.5-1.5B | [`paper/experiments/results/bitsweep_qwen2.5-1.5b.json`](https://github.com/dhawalc/turboQuantDC/blob/1654b63efd3c424ecddbfa3ada98d233e81e8360/paper/experiments/results/bitsweep_qwen2.5-1.5b.json) |
 | Needle-in-a-haystack | 0/3 → 3/3 recall at 8K context with the correction | [`benchmarks/niah_for_tom.py` @ `8f18fae`](https://github.com/dhawalc/turboQuantDC/blob/8f18faef27252910c0bc70ddd87ce427e41ef107/benchmarks/niah_for_tom.py) |

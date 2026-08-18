@@ -14,7 +14,7 @@ body:
 
         The reference experiment, its exact configuration, and guidance on what
         counts as a match are in
-        [REPRODUCTIONS.md](https://github.com/dhawalc/turboQuantDC/blob/master/REPRODUCTIONS.md).
+        [REPRODUCTIONS.md](https://github.com/dhawalc/turboQuantDC/blob/HEAD/REPRODUCTIONS.md).
 
         Note that this repository contains **two harnesses** for the Qwen2.5-7B
         experiment which compress different things and therefore produce different
