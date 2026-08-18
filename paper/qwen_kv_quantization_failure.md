@@ -746,17 +746,20 @@ relative logit structure that generation depends on.
 | Adversarial validation | https://github.com/dhawalc/turboQuantDC/blob/517264696def516f5188e62c99a7ab3c3d49002d/benchmarks/results/adversarial_validation.md |
 
 The following artifacts were previously excluded from version control by a
-`results/` ignore rule in `.gitignore`. They are force-added in the **same commit
-as this manuscript**, so that every number cited here resolves to a tracked file;
-their permalink is therefore the commit that introduces this document.
+`results/` ignore rule in `.gitignore`. They were force-added in commit
+`e9ca7e1df070aeca0c7a9029171504125d0c3a4b` (2026-08-17), which also introduced
+this manuscript, so that every number cited here resolves to a tracked file.
 
-| Artifact | Cited in |
-|---|---|
-| `benchmarks/results/rotorquant_comprehensive.md` | §6.2, §6.3 |
-| `benchmarks/results/rotorquant_comprehensive_20260415_0835.json` (3B) | §6.2 |
-| `benchmarks/results/rotorquant_comprehensive_20260415_0840.json` (3B, 7B) | §6.2 |
-| `benchmarks/results/rotorquant_comprehensive_20260415_0907.json` (14B) | §6.2 |
-| `benchmarks/results/mean_removal_integration_results.json` | §9 (Limitation 9) |
+| Artifact | Cited in | Permalink |
+|---|---|---|
+| `rotorquant_comprehensive.md` | §6.2, §6.3 | https://github.com/dhawalc/turboQuantDC/blob/e9ca7e1df070aeca0c7a9029171504125d0c3a4b/benchmarks/results/rotorquant_comprehensive.md |
+| `rotorquant_comprehensive_20260415_0835.json` (3B) | §6.2 | https://github.com/dhawalc/turboQuantDC/blob/e9ca7e1df070aeca0c7a9029171504125d0c3a4b/benchmarks/results/rotorquant_comprehensive_20260415_0835.json |
+| `rotorquant_comprehensive_20260415_0840.json` (3B, 7B) | §6.2 | https://github.com/dhawalc/turboQuantDC/blob/e9ca7e1df070aeca0c7a9029171504125d0c3a4b/benchmarks/results/rotorquant_comprehensive_20260415_0840.json |
+| `rotorquant_comprehensive_20260415_0907.json` (14B) | §6.2 | https://github.com/dhawalc/turboQuantDC/blob/e9ca7e1df070aeca0c7a9029171504125d0c3a4b/benchmarks/results/rotorquant_comprehensive_20260415_0907.json |
+| `mean_removal_integration_results.json` | §9 | https://github.com/dhawalc/turboQuantDC/blob/e9ca7e1df070aeca0c7a9029171504125d0c3a4b/benchmarks/results/mean_removal_integration_results.json |
+
+This manuscript's own first published revision:
+https://github.com/dhawalc/turboQuantDC/blob/e9ca7e1df070aeca0c7a9029171504125d0c3a4b/paper/qwen_kv_quantization_failure.md
 
 Every figure in the §6.2 table was independently read back out of the raw JSON
 files, not transcribed from the summary markdown.
