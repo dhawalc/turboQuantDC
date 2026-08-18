@@ -276,9 +276,11 @@ with different quantizers, before we found them ourselves or concurrently with u
   an independent measurement of the same catastrophic key-quantization failure,
   in a different codebase, with a different quantizer. The same commenter reports
   Mistral-7B at +0.31% under the identical protection-off setting — an independent
-  observation of the family-specificity. Notably, first-layer protection is
-  exactly what our worst-layer analysis (§6.9, §6.15) predicts should matter for
-  Qwen2.5-7B, whose damage concentrates at layer 0.
+  observation of the family-specificity. Notably, their choice of *which* layers
+  to protect — first and last — is exactly what our per-layer profile predicts:
+  on Qwen2.5-7B at 3 bits the two worst layers by attention-logit correlation
+  are layer 0 (0.54) and layer 27 (0.80), with every layer in between at ≥0.92
+  (Figure 1). Two codebases, two quantizers, the same two layers.
 - **In the same thread** (user sztlink, 2026-05-06): a KLD-based check of the
   q4_0 claim scores "close" (98.81) while a trajectory-preservation harness rates
   the same configuration degraded — an independent sighting of the central metric
@@ -1095,7 +1097,8 @@ anything. Over all 72 cells, correlated against log₁₀(PPL ratio):
 | **worst-layer logit correlation** | **−0.750** | **−0.949** | **Yes, with a clean gap** |
 | logit spread ratio | 0.756 | 0.847 | No — the ranges overlap |
 
-Taking "broken" to mean a perplexity ratio above 2×, a single threshold of 0.8266
+Figure 2 ([`figures/fig2_metric_scatter.png`](figures/fig2_metric_scatter.png))
+plots every cell against both metrics. Taking "broken" to mean a perplexity ratio above 2×, a single threshold of 0.8266
 on worst-layer logit correlation **misclassifies 0 of 72 cells**. The separating
 gap is clean: the worst broken configuration sits at 0.8056 and the best surviving
 one at 0.8475. Per-vector cosine similarity has no such threshold — broken cells
@@ -1287,7 +1290,9 @@ Three results, in increasing order of importance:
    misclassifies 5 of 126 cells where cosine misclassifies 14, and 7 of 104
    held-out cells against cosine's 34 — still strictly dominant, no longer
    perfect.
-3. **Why they miss is the interesting part.** Read down the centered columns:
+3. **Why they miss is the interesting part.** Figure 1
+   ([`figures/fig1_damage_geometries.png`](figures/fig1_damage_geometries.png))
+   contrasts the two damage geometries per layer. Read down the centered columns:
    nine models, one quantizer setting, and the proxies are *constant* —
    lr_min 0.928–0.933, cosine 0.955–0.976 — while true damage spans ×1.04 to
    ×4.00. At 1 bit the noise the quantizer injects is essentially
