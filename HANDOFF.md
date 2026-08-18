@@ -55,6 +55,62 @@ score-space coordinate, the KV-cache setting, and validity in the catastrophic
 regime where HIGGS's quadratic model is explicitly stated to diverge (they
 restrict to >3 bits; our subject is 2–3 bits at ×100–×1,400).
 
+### The engineering result: the cache now actually compresses
+
+**The compressor was expanding the KV cache, not compressing it.** Measured
+bytes actually held (512 tokens, 2-bit, 1×8×512×128):
+
+| Field | Before | After |
+|---|---|---|
+| `_key_indices` | int64, 4.000 MiB | packed 2-bit, 0.125 MiB |
+| `_val_indices` | int64, 4.000 MiB | packed 2-bit, 0.125 MiB |
+| `_key_res_signs` | fp32, 2.000 MiB | packed 1-bit, 0.062 MiB |
+| `_raw_keys`/`_raw_vals` | bf16, 2.000 MiB | not stored |
+| `_key_means` | cloned to full seq len | (B,H,1,D)/chunk, 0.002 MiB |
+| **total vs FP16's 2.000 MiB** | **12.05 MiB = 0.17×** | **0.361 MiB = 5.54×** |
+
+End-to-end on Llama-3.2-3B at 8,192 tokens: **896 → 161 MiB (5.56×)**, at
+×1.07 perplexity (atlas, 2-bit centered) and 0.52× prefill throughput.
+Reconstruction bit-identical (mean cos 0.99998 before and after).
+
+This discharges **Limitation 8**, the sentence that forbade quoting any
+compression ratio from this work. Three of the four defects were not even named
+by that limitation.
+
+Caveats that still stand: the quality harness hands FP16 reconstructions back
+to the model's own cache, so a live harness process holds more than an FP16
+cache — the 5.56× is the compressed *representation*, which is what a cache
+storing only that would hold. And 3-bit packs at 4 bits/value (`8//3 = 2`), so
+3-bit reaches only 3.27×; 2-bit and 4-bit pack exactly.
+
+**Two regressions were introduced and fixed**, both caught by the test suite:
+`SelfCorrectingCache` reshapes `_key_indices` to `(-1, d)` and needed unpacking
+(plus a chunk-ordering fix), and `crop` cat'd the now-empty raw lists. Final
+state: **594 passed, 0 failed**. `test_fused_generation_3bit` fails identically
+on the clean tree (pre-existing, estimator path).
+
+*Methodological note for whoever picks this up:* the first "clean tree"
+comparison was worthless — the work was already committed, so `git stash`
+stashed nothing and the run compared the new code against itself. Use
+`git show <parent>:<path>` to get a real baseline.
+
+### The 1-bit residual: our explanation was wrong
+
+§6.22 attributed the damage law's 1-bit under-prediction to Gaussian-vs-
+quantization noise shape. Three matched families (uniform, Rademacher signs,
+true deterministic scalar rounding, all at equal per-vector RMS error) refute
+it: real scalar quantization scores **0.206** median error on 1-bit cells
+against Gaussian's **0.164** — worse on exactly the cells it was built to fix.
+All four families under-predict the same *centered* cells by nearly the same
+factor while handling uncentered ones well.
+
+This strengthens the law's central claim (only the scalar amount of score-space
+noise matters, across four noise geometries) and leaves the residual open. It
+tracks centering at very low bit-width; cause unknown.
+
+Seed replication: median error 0.0116 → 0.0118 across seeds. The curves are not
+seed-sensitive — the paper's only variance estimate.
+
 ### The other results from this sprint
 
 - **§6.20 Lineage — the pathology was born in Qwen2.** Qwen1.5-1.8B immune
