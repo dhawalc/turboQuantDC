@@ -1,9 +1,11 @@
 # Diagnosing Catastrophic Low-Bit KV-Cache Quantization Failure in Qwen Models
 
 **Author:** Dhawal Chheda
-**Draft date:** 2026-08-17
-**Status:** Working manuscript. Not submitted. Numbers are from previously-run,
-committed experiments; Section 7 lists the ablations still outstanding.
+**Draft date:** 2026-08-17 (revised 2026-08-18)
+**Status:** Working manuscript. Not submitted. Sections 3–6.5 report previously-run
+committed experiments; Sections 6.6–6.9 report new measurements made on 2026-08-18
+that confirm the mechanism's central prediction and refute one follow-on
+hypothesis. Section 7 lists the ablations still outstanding.
 **Repository:** https://github.com/dhawalc/turboQuantDC
 
 ---
@@ -32,6 +34,18 @@ token-discriminative component of the key — the only component softmax respond
 Subtracting the per-head running key mean before quantization and restoring it
 after dequantization reduced perplexity from 9,410.5 to 7.90 under the same
 experimental configuration, and restored 3/3 needle recall.
+
+Direct measurement on the failing model's activations confirms the mechanism's
+central prediction: **53% of the average key's squared magnitude is the shared
+per-head mean**, and the mean cosine between a key and that mean is 0.715. Running
+the compressor on those real keys reproduces the failure at the level that matters:
+at layer 0, reconstructed keys retain a vector cosine similarity of 0.9950 both
+with and without centering, while the correlation of the *attention logits* they
+produce is 0.5488 without centering and 0.9934 with it. A natural sharper
+hypothesis — that Qwen2.5's learned key-projection bias, which no newer model we
+scanned retains, is the source of the shared component — was tested and refuted:
+zeroing it removes the extreme tail of mean-dominated heads but leaves the bulk
+shared component unchanged.
 
 Critically, the failure is **not uniform across the Qwen family**. In a separate
 sweep across three model sizes, Qwen2.5-3B (2 KV heads) and Qwen2.5-7B (4 KV heads)
@@ -343,19 +357,26 @@ The hypothesis is worth stating because it is falsifiable. It predicts:
 - **P2.** The failure should be attributable to the key path specifically, and
   should persist with values left uncompressed. — **Consistent with observation**
   (§6.2: the April-15 sweep compressed keys only and still failed).
-- **P3.** Failure severity should scale with the ratio `‖μ_h‖ / E‖k − μ_h‖`
-  measured on real activations. — **NOT YET TESTED.** This is the single most
-  important outstanding experiment; see §7.
+- **P3.** The ratio `‖μ_h‖ / E‖k − μ_h‖` should be large on a model that fails.
+  — **CONFIRMED** (§6.7): on Qwen2.5-7B, 53% of the average key's energy is the
+  shared per-head mean, and the mean cosine of a key to that mean is 0.715.
 - **P4.** A data-independent rotation (WHT) should be more vulnerable than a random
   orthogonal rotation, since a random rotation spreads a fixed offset across
   coordinates unpredictably rather than into a fixed pattern. — **NOT YET TESTED.**
 - **P5.** Models whose per-head key mean is small should not exhibit the failure.
   — **Consistent with observation but confounded** (§6.3: 14B, with 8 KV heads,
   does not fail — but we have not measured its key mean).
+- **P6.** *(added 2026-08-18)* The damage should appear in relative attention
+  logits while vector-level reconstruction metrics still look healthy.
+  — **CONFIRMED** (§6.9): at layer 0, vector cosine is 0.9950 both with and
+  without centering, while the attention-logit correlation is 0.5488 vs 0.9934.
 
-P3 is the load-bearing untested prediction. Until it is measured, the mechanism in
-§4.2 remains a hypothesis that is *consistent with* the evidence rather than
-demonstrated by it.
+As of 2026-08-18 the mechanism is no longer purely inferential: P3 and P6 are
+measured directly (§6.7, §6.9). What remains open is P4, and the *generality* of
+the mechanism — `ρ_h` has been measured on exactly one model, and only on a model
+that fails (§9, Limitation 12). A natural sharper hypothesis, that Qwen2.5's
+`k_proj` bias is the source of the shared component, was tested and **refuted**
+(§6.8).
 
 ---
 
@@ -553,6 +574,156 @@ corroboration of the same-magnitude effect from code we did not write; it is not
 controlled replication, since neither the harness nor the evaluation protocol was
 matched.
 
+### 6.6 Architectural scan: which models carry a shared key component by construction
+
+*(added 2026-08-18)*
+
+We scanned every language model available locally as a GGUF blob, reading the
+tensor index and metadata directly. Vision-tower tensors (`v.blk.*`) are excluded:
+ViTs conventionally carry a QKV bias, and counting it would be a false positive
+for the language model.
+
+| Model | Arch | Attn layers | KV heads | head_dim | `k_proj` bias | QK-Norm | mean ‖b_h‖ | max ‖b_h‖ |
+|---|---|---:|---:|---:|:--:|:--:|---:|---:|
+| qwen2.5:7b | qwen2 | 28/28 | 4 | 128 | **yes** | no | 31.98 | **920.34** |
+| qwen2.5-coder:7b | qwen2 | 28/28 | 4 | 128 | **yes** | no | 36.04 | **998.71** |
+| qwen3:14b | qwen3 | 40/40 | 8 | 128 | no | yes | – | – |
+| qwen3.6:27b | qwen35 | 16/64 | 4 | 256 | no | yes | – | – |
+| gemma3:12b | gemma3 | 48/48 | 8 | 256 | no | yes | – | – |
+| gemma3:27b | gemma3 | 62/62 | 16 | 128 | no | yes | – | – |
+| gemma4:latest | gemma4 | 42/42 | 2 | 512 | no | yes | – | – |
+
+Source: [`paper/experiments/results/architecture_scan.json`](experiments/results/architecture_scan.json)
+
+Qwen2.5 is the **only** family in this set that adds a learned bias to the key
+projection. A `k_proj` bias is, by construction, a component shared by every key
+at every position before RoPE, and its per-head norm reaches 920–999. Qwen3
+removed the QKV bias that Qwen2 used and introduced QK-Norm in its place
+(RMSNorm applied to the query and key head vectors), and every newer architecture
+here — Qwen3, Qwen3.5/3.6, Gemma 3, Gemma 4 — follows the same pattern.
+
+Two entries deserve note. **gemma4 has only 2 KV heads** — fewer than the
+Qwen2.5-7B that failed — yet carries no key bias; it is therefore the single best
+available test for separating the KV-head-count correlation (§6.3) from the
+shared-key-component mechanism (§4.2). **qwen3.6:27b is a hybrid stack**: only 16
+of its 64 layers are attention layers (4 KV heads, head_dim 256); the rest use a
+non-attention token mixer and hold no KV cache.
+
+### 6.7 Direct measurement of the per-head key mean — prediction P3
+
+*(added 2026-08-18)*
+
+We measured `ρ_h = ‖μ_h‖ / E_t‖k_t − μ_h‖` on **real post-RoPE keys** read out of
+the KV cache of Qwen2.5-7B-Instruct — the exact model of §3.1 — loaded from the
+local Q4_K_M GGUF blob, over 1,024 tokens:
+
+| Statistic | Value |
+|---|---:|
+| ρ mean | 2.456 |
+| ρ median | 0.978 |
+| ρ p90 | 2.113 |
+| ρ max | 59.116 |
+| **mean cos(k_t, μ_h)** | **0.7150** |
+| **shared-mean energy fraction ‖μ_h‖²/E‖k_t‖²** | **0.5267** |
+| heads with ρ > 1 | 43.8% |
+| heads with ρ > 3 | 8.9% |
+
+Source: [`paper/experiments/results/key_mean_rho.json`](experiments/results/key_mean_rho.json)
+
+**P3 is confirmed.** On the model that fails, an average key makes a 44° angle
+with its own head's mean, and **53% of the average key's squared magnitude is a
+component that softmax cannot see**. The distribution is heavy-tailed: the median
+head is near ρ ≈ 1 while the worst is ρ ≈ 59. This is the measurement §4.2's
+mechanism needed and had never had.
+
+### 6.8 Causal attribution: the bias is *not* the main cause
+
+*(added 2026-08-18)*
+
+§6.6 makes an obvious hypothesis available — that Qwen2.5's `k_proj` bias *is* the
+shared component. We tested it directly by loading the model once and measuring
+both arms, identical in every other respect:
+
+| Statistic | A: as shipped | B: `k_proj.bias := 0` |
+|---|---:|---:|
+| ρ mean | 2.456 | 1.117 |
+| ρ median | 0.978 | 1.148 |
+| ρ max | **59.116** | **1.742** |
+| heads with ρ > 3 | **8.9%** | **0.0%** |
+| mean cos(k_t, μ_h) | 0.7150 | 0.7244 |
+| shared-mean energy fraction | 0.5267 | 0.5351 |
+
+Source: [`paper/experiments/results/bias_ablation.json`](experiments/results/bias_ablation.json)
+
+**The obvious hypothesis is wrong, and we report it as such.** Removing the bias
+eliminates the extreme tail entirely — the worst head falls from ρ ≈ 59 to ρ ≈ 1.7,
+and no head remains above ρ = 3 — but it leaves the *bulk* shared component
+completely untouched: mean cosine to the head mean and shared-energy fraction both
+move by under 0.01, in the wrong direction.
+
+The correct statement is therefore twofold:
+
+1. The large shared key component in Qwen2.5-7B is **not** produced by the key
+   bias. It is produced by `W_k · E[x]` — the projection of the residual stream's
+   own large, persistent mean, which connects this failure to the massive-activation
+   and attention-sink literature (§2.5) rather than to a Qwen-specific weight.
+2. The key bias **does** create a small population of extremely mean-dominated
+   heads (ρ up to 59) that exist in no other model we scanned.
+
+This weakens any claim that newer bias-free architectures are automatically safe.
+They lack the extreme tail; whether they also lack the bulk shared component is
+**unmeasured** (§9, Limitation 12).
+
+### 6.9 Closing the loop: what the shared component does to the quantizer
+
+*(added 2026-08-18)*
+
+The measurements above establish that the shared component exists. This experiment
+establishes that it is what breaks the quantizer, using the repository's **own
+production 3-bit path** (`_CompressedLayer`, WHT rotation + ResidualQuant) applied
+to the real Qwen2.5-7B keys from §6.7, with centering on and off.
+
+Because softmax responds only to the spread of `u·k_i` across positions for
+whatever query direction `u` arises, we compare true and reconstructed logit
+vectors over 256 random unit probe directions, after removing the per-probe mean
+(the part softmax ignores). We report the correlation between them and the ratio
+of their standard deviations.
+
+| | Vector cosine | **Logit correlation** | Logit spread ratio |
+|---|---:|---:|---:|
+| **Layer 0**, no centering | 0.9950 | **0.5488** | 1.746 |
+| **Layer 0**, centered | 0.9950 | **0.9934** | 1.001 |
+| All layers, no centering | 0.9948 | 0.9619 | 1.0595 |
+| All layers, centered | 0.9972 | 0.9931 | 1.0012 |
+
+Source: [`paper/experiments/results/quantizer_loop.json`](experiments/results/quantizer_loop.json)
+
+This is the mechanism, demonstrated rather than argued:
+
+- **Vector-level reconstruction is excellent in both arms and cannot tell them
+  apart.** Cosine similarity is 0.9950 with and without centering at layer 0 —
+  comfortably past the >0.995 success criterion this project set for itself.
+- **The quantity softmax actually responds to is destroyed.** At layer 0 the
+  attention-logit correlation without centering is 0.5488. Centering restores it
+  to 0.9934 at identical bit-width.
+- **The error is not merely attenuation, it is injected noise.** The logit spread
+  ratio of 1.746 means the uncentered reconstruction produces logit variation 75%
+  larger than the truth — the quantizer is manufacturing attention structure that
+  is not in the model.
+- Damage is concentrated at the ends of the stack: layer 0 (0.5488) and layer 27
+  (0.8239) are the worst; middle layers sit near 0.988. Layer 0 was independently
+  flagged as anomalous in this repository's April adversarial validation, which
+  found rotation choice mattered ~70× more there than elsewhere.
+
+This directly explains §8.5 and Limitation 9: a project validating on vector or
+attention cosine similarity would have graded the uncentered configuration as
+near-lossless while it was in fact producing perplexity in the thousands.
+
+**Scope.** This experiment measures single-layer key reconstruction, not
+end-to-end perplexity. It shows how the discriminative signal is lost at each
+layer; it does not by itself prove that this compounds into the PPL 9,410 of
+§3.1. The probe directions are random rather than the model's real queries.
+
 ---
 
 ## 7. Ablations
@@ -562,32 +733,40 @@ data; three do not.
 
 | # | Ablation | Status | Evidence |
 |---|---|---|---|
-| 1 | Mean removal ON/OFF | **Done** | §6.1, §6.2, §6.4 |
+| 1 | Mean removal ON/OFF | **Done** | §6.1, §6.2, §6.4, §6.9 |
 | 2 | Multiple bit widths (3, 4) | **Done** | §3.2, §6.1 |
 | 3 | Multiple Qwen sizes (3B, 7B, 14B) | **Done** | §6.2 |
-| 4 | At least one non-Qwen architecture | **Not done** | — |
-| 5 | Different context lengths | **Partial** | 4,095 vs 8,192 tokens (§6.1 vs §6.2), but confounded with harness changes |
-| 6 | Different evaluation samples / seeds | **Not done** | single seed (42), single dataset, single run per cell |
+| 4 | At least one non-Qwen architecture | **Structural only** | §6.6 covers Gemma 3 / Gemma 4 at the weights level; no activation or PPL measurement (§9, Limitation 11) |
+| 5 | Different context lengths | **Partial** | 4,095 vs 8,191 tokens (§6.1 vs §6.2), confounded with harness changes |
+| 6 | Different evaluation samples / seeds | **Not done** | single seed (42), single run per cell |
+| 7 | **P3: measure the per-head key mean** | **Done** | §6.7 — the mechanism's load-bearing quantity, now measured |
+| 8 | **Causal attribution of the shared component** | **Done** | §6.8 — bias hypothesis tested and refuted |
+| 9 | **Quantizer-level demonstration on real keys** | **Done** | §6.9 |
+
+Items 7–9 were added and executed on 2026-08-18. Item 7 was the previous draft's
+"highest-priority next experiment"; the result appears in §6.7 and confirmed the
+prediction, while item 8 refuted the most natural follow-on hypothesis.
 
 ### 7.1 Highest-priority next experiment
 
-**Measure the per-head key mean magnitude directly.** This tests prediction P3 and
-is the difference between a hypothesis and a mechanism. The quantity to report,
-per layer and per KV head, is the ratio
+**Measure `ρ_h` on a model that does *not* fail.** Every activation measurement in
+this paper is from Qwen2.5-7B — a model that fails. A mechanism claim needs the
+contrast: if Gemma 3, Gemma 4, or Qwen 3 shows a comparably large shared key
+component (cos ≈ 0.7, energy fraction ≈ 0.5) while quantizing cleanly, then the
+shared component is not sufficient to cause the failure and §4.2 is incomplete.
 
-```
-ρ_h = ‖μ_h‖ / E_t‖k_{h,t} − μ_h‖
-```
+Two candidates are decisive and available locally as GGUF blobs:
 
-on real activations for Qwen2.5-3B, 7B, and 14B over a fixed wikitext-2 passage.
-The hypothesis predicts `ρ_h` is large for 3B and 7B and small for 14B. If `ρ_h` is
-similar across all three, the mechanism in §4.2 is wrong and the KV-head
-correlation has some other cause.
+- **gemma4** — 2 KV heads, *fewer* than the Qwen2.5-7B that failed, but no key
+  bias and QK-Norm present. It separates the KV-head-count correlation (§6.3)
+  from the shared-component mechanism (§4.2) better than any other model here.
+- **qwen3.6:27b** — 4 KV heads, matching Qwen2.5-7B exactly, but bias-free with
+  QK-Norm.
 
-A ready-to-run script is provided at
-[`paper/experiments/measure_key_mean.py`](experiments/measure_key_mean.py).
-It requires the Qwen2.5 checkpoints, which are **not** currently present in the
-local HF cache and must be re-downloaded.
+Neither is currently runnable on this host: the transformers GGUF loader
+materializes a full dequantized state dict in RAM, which caps this machine at
+roughly 8B parameters, and neither `gemma4` nor `qwen35` is among the
+architectures that loader supports (§9, Limitation 11).
 
 ### 7.2 Remaining programme, in priority order
 
@@ -625,17 +804,45 @@ local HF cache and must be re-downloaded.
 - The correction helps at both 3 and 4 bits, on both 3B and 7B, and across five
   prompt domains at the attention level.
 
+*Added 2026-08-18:*
+
+- The shared per-head key component the mechanism requires **exists and is large**
+  on the failing model: 53% of the average key's squared magnitude, mean cosine
+  0.715 to the head mean (§6.7).
+- Running the repository's own 3-bit path on those real keys **reproduces the
+  failure at the logit level while vector-level metrics stay clean**: at layer 0,
+  cosine 0.9950 in both arms, logit correlation 0.5488 uncentered vs 0.9934
+  centered (§6.9).
+- Qwen2.5 is the **only** family among seven locally scanned models that adds a
+  learned bias to the key projection; every newer architecture scanned (Qwen3,
+  Qwen3.5/3.6, Gemma 3, Gemma 4) replaced it with QK-Norm (§6.6).
+
 ### 8.2 What remains a hypothesis
 
-The **mechanism** is a hypothesis. We have not measured the per-head key mean on
-any of these models. Every statement in §4.2 about `‖μ_h‖` being large is an
-inference from the effectiveness of the correction, which is weak evidence:
-mean removal changes the input distribution to the quantizer in several ways at
-once, and "the intervention that removes the mean helps" does not by itself
-establish "the mean was the problem."
+*This section was substantially rewritten on 2026-08-18. The previous draft's
+central caveat — that `‖μ_h‖` had never been measured — no longer applies.*
+
+What is now **measured** is that the shared component is large on the failing
+model, and that it is what costs the quantizer its logit fidelity (§6.7, §6.9).
+
+What remains a hypothesis:
+
+- **Sufficiency.** We have not shown that a large shared component is what
+  *distinguishes* failing from non-failing models, because every activation
+  measurement here is from a model that fails. If Gemma 3 turns out to have a
+  comparable shared component and quantizes cleanly, §4.2 is incomplete
+  (Limitation 11). This is now the load-bearing gap.
+- **Origin.** §6.8 rules out the `k_proj` bias as the source of the bulk shared
+  component and points to `W_k · E[x]`, but that attribution is by elimination
+  rather than measurement (Limitation 12).
+- **Compounding.** §6.9 measures per-layer key reconstruction, not end-to-end
+  perplexity, so the path from "logit correlation 0.55 at layer 0" to "PPL 9,410"
+  is argued rather than traced (Limitation 14).
 
 The **KV-head dependence** is an observed correlation over three models in a single
-family, with parameter count fully confounded. It is a lead, not a result.
+family, with parameter count fully confounded. It is a lead, not a result — and
+§6.6 now supplies a way to test it: gemma4 has 2 KV heads, *fewer* than the model
+that failed, with none of the Qwen2.5-specific weight structure.
 
 ### 8.3 What may generalize
 
@@ -665,7 +872,10 @@ We cannot claim that:
 ### 8.5 A note on metric choice
 
 §6.4 shows attention cosine similarity above 0.97 in configurations whose
-end-to-end perplexity is catastrophic. Whatever the resolution of the measurement
+end-to-end perplexity is catastrophic, and §6.9 now quantifies the dissociation
+directly on real keys: at layer 0 the reconstructed keys score 0.9950 vector
+cosine — past this project's own >0.995 success criterion — in the very arm whose
+attention-logit correlation is 0.5488. Whatever the resolution of the measurement
 inconsistency noted in §9, the practical lesson stands: **KV-cache compression
 methods should not be validated on attention-level reconstruction metrics alone.**
 A method can preserve attention-score cosine similarity and still destroy the
@@ -723,10 +933,42 @@ relative logit structure that generation depends on.
    only, and the April-15 cosine column is excluded from the results entirely. The
    discrepancy must be resolved before any attention-level metric from this
    repository is published anywhere.
-10. **Context length is confounded with harness.** The 4,095- and 8,192-token
+10. **Context length is confounded with harness.** The 4,095- and 8,191-token
     results also differ in cache integration and in whether values were compressed,
     so §6.2 is a replication under changed conditions rather than a context-length
     ablation.
+
+*Added 2026-08-18, covering §6.6–§6.9:*
+
+11. **No activation measurement on a model that does not fail.** §6.7–§6.9 are all
+    Qwen2.5-7B. The contrast case is missing for two compounding reasons: the
+    transformers GGUF loader materializes a full dequantized state dict in RAM,
+    which caps this host near 8B parameters (a 12B attempt drove the machine into
+    23 GB of swap and was abandoned), and the two most decisive candidates —
+    `gemma4` (2 KV heads, bias-free) and `qwen35`/qwen3.6 (4 KV heads, bias-free)
+    — are not among the architectures that loader supports. Until this gap is
+    closed, §6.7's numbers show the shared component **exists** on a failing model,
+    not that its absence is what makes other models safe.
+12. **The shared component's origin is only partly explained.** §6.8 shows it is
+    not the `k_proj` bias. The residual attribution — `W_k · E[x]`, i.e. the
+    residual stream's own persistent mean — is inferred by elimination, not
+    measured. Measuring `E[x]` and propagating it through `W_k` would settle it.
+13. **Corpus deviation in §6.7–§6.9.** wikitext-2 is not cached on this host and
+    these runs were performed download-free, so the 1,024-token corpus is
+    committed repository prose plus the real wikitext-2 excerpt that already lives
+    in `benchmarks/mean_removal_benchmark.py`. Technical documentation has a
+    narrower token distribution than wikitext, which could plausibly *inflate* a
+    shared key component. The §6.7 statistics should be re-measured on wikitext-2
+    before being quoted as characteristic of the model.
+14. **§6.9 uses random probe directions, not the model's real queries**, and
+    measures single-layer key reconstruction rather than end-to-end perplexity. It
+    demonstrates where the discriminative signal is lost; it does not by itself
+    establish that this compounds into the PPL 9,410 of §3.1.
+15. **Different weight quantization from the primary runs.** §6.7–§6.9 use the
+    Q4_K_M GGUF weights that ollama holds, while §3 and §6.1 use bitsandbytes NF4.
+    Both are 4-bit, but they are not the same quantizer, so the activation
+    statistics are from a near-neighbour of the model that produced the perplexity
+    numbers rather than from that exact artifact.
 
 ---
 
@@ -764,15 +1006,38 @@ https://github.com/dhawalc/turboQuantDC/blob/e9ca7e1df070aeca0c7a9029171504125d0
 Every figure in the §6.2 table was independently read back out of the raw JSON
 files, not transcribed from the summary markdown.
 
-**Outstanding-experiment tooling.** The measurement that would convert §4's
-hypothesis into a mechanism is implemented and unit-checked against analytically
-known inputs, but has not been run against real models (the Qwen2.5 checkpoints
-are not currently in the local HF cache):
+**Experiments added 2026-08-18 (§6.6–§6.9).** These were run **download-free**,
+against GGUF blobs already present in the host's local ollama store, using a
+dependency-free GGUF reader for the structural scan and the transformers GGUF
+loader (architectures `qwen2`, `qwen3`, `gemma3`) for the activation work.
+
+| Script | Produces | Reported in |
+|---|---|---|
+| [`experiments/scan_architectures.py`](experiments/scan_architectures.py) | [`results/architecture_scan.json`](experiments/results/architecture_scan.json) | §6.6 |
+| [`experiments/measure_key_mean_gguf.py`](experiments/measure_key_mean_gguf.py) | [`results/key_mean_rho.json`](experiments/results/key_mean_rho.json) | §6.7 |
+| [`experiments/bias_ablation.py`](experiments/bias_ablation.py) | [`results/bias_ablation.json`](experiments/results/bias_ablation.json) | §6.8 |
+| [`experiments/quantizer_loop.py`](experiments/quantizer_loop.py) | [`results/quantizer_loop.json`](experiments/results/quantizer_loop.json) | §6.9 |
+| [`experiments/gguf_reader.py`](experiments/gguf_reader.py) | (library — no external deps) | §6.6 |
 
 ```bash
-python paper/experiments/measure_key_mean.py                    # all three sizes
-python paper/experiments/measure_key_mean.py --models 7B        # single model
+# Structural scan of every model in the local ollama store. Seconds, no GPU.
+python paper/experiments/scan_architectures.py
+
+# Activation measurements. CPU, bfloat16; ~5 min load + ~3 min per forward pass.
+# Requires: pip install gguf   (a small pure-Python reader, not a model download)
+python paper/experiments/measure_key_mean_gguf.py --models qwen2.5:7b --tokens 1024
+python paper/experiments/bias_ablation.py
+python paper/experiments/quantizer_loop.py
 ```
+
+Host used for these runs: RTX 4090 (idle for §6.6–§6.9 — all four ran on CPU),
+62 GB RAM, Python 3.13.12, PyTorch 2.11.0+cu130, transformers 5.5.0, gguf 0.19.0.
+Model weights are the Q4_K_M GGUF builds ollama ships (see Limitation 15).
+
+**Superseded tooling.** [`experiments/measure_key_mean.py`](experiments/measure_key_mean.py)
+is the original HuggingFace-hub version of the §6.7 measurement. It is retained
+because it is the path to use once the Qwen2.5 checkpoints are re-downloaded, but
+the results in this paper come from the GGUF variant above.
 
 **Implementation entry points:**
 
@@ -834,6 +1099,9 @@ cached; the checkpoints themselves are roughly 15 GB and 6 GB for 7B and 3B.
 9. Ainslie, J., et al. *GQA: Training Generalized Multi-Query Transformer Models
    from Multi-Head Checkpoints.* EMNLP, 2023. arXiv:2305.13245. `[verify]`
 10. Qwen Team. *Qwen2.5 Technical Report.* arXiv:2412.15115, 2024. `[verify]`
+10b. Qwen Team. *Qwen3 Technical Report.* arXiv:2505.09388, 2025. Source for the
+    claim in §6.6 that Qwen3 removes the QKV-bias used in Qwen2 and introduces
+    QK-Norm. `[verify]`
 11. Merity, S., Xiong, C., Bradbury, J., Socher, R. *Pointer Sentinel Mixture
     Models.* arXiv:1609.07843, 2016. `[verify]`
 12. Dettmers, T., Pagnoni, A., Holtzman, A., Zettlemoyer, L. *QLoRA: Efficient

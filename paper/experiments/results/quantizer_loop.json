@@ -1,0 +1,269 @@
+{
+ "model": "qwen2.5:7b",
+ "tokens": 1024,
+ "key_bits": 3,
+ "n_probes": 256,
+ "device": "cuda",
+ "aggregate": {
+  "nocenter_logit_r": 0.9618987909385136,
+  "nocenter_spread_ratio": 1.0595485610621316,
+  "nocenter_vec_cos": 0.9948470188038689,
+  "center_logit_r": 0.9931479554091182,
+  "center_spread_ratio": 1.0011602746588844,
+  "center_vec_cos": 0.9972018450498581
+ },
+ "per_layer": [
+  {
+   "layer": 0,
+   "nocenter_logit_r": 0.548843652009964,
+   "nocenter_spread_ratio": 1.746102213859558,
+   "nocenter_vec_cos": 0.995029553771019,
+   "center_logit_r": 0.9933977574110031,
+   "center_spread_ratio": 1.0012606084346771,
+   "center_vec_cos": 0.9999803155660629
+  },
+  {
+   "layer": 1,
+   "nocenter_logit_r": 0.9347349256277084,
+   "nocenter_spread_ratio": 1.0743070244789124,
+   "nocenter_vec_cos": 0.9947552978992462,
+   "center_logit_r": 0.9931151568889618,
+   "center_spread_ratio": 1.000281661748886,
+   "center_vec_cos": 0.9990850687026978
+  },
+  {
+   "layer": 2,
+   "nocenter_logit_r": 0.9719881415367126,
+   "nocenter_spread_ratio": 1.019114077091217,
+   "nocenter_vec_cos": 0.9949886798858643,
+   "center_logit_r": 0.992938831448555,
+   "center_spread_ratio": 1.0014652609825134,
+   "center_vec_cos": 0.9984021931886673
+  },
+  {
+   "layer": 3,
+   "nocenter_logit_r": 0.9417497664690018,
+   "nocenter_spread_ratio": 1.056758165359497,
+   "nocenter_vec_cos": 0.9947841018438339,
+   "center_logit_r": 0.9932515621185303,
+   "center_spread_ratio": 1.0012871026992798,
+   "center_vec_cos": 0.9988646060228348
+  },
+  {
+   "layer": 4,
+   "nocenter_logit_r": 0.9902130663394928,
+   "nocenter_spread_ratio": 1.0025193691253662,
+   "nocenter_vec_cos": 0.9947981983423233,
+   "center_logit_r": 0.9931701868772507,
+   "center_spread_ratio": 1.0007971227169037,
+   "center_vec_cos": 0.9964094012975693
+  },
+  {
+   "layer": 5,
+   "nocenter_logit_r": 0.988682210445404,
+   "nocenter_spread_ratio": 1.0032133758068085,
+   "nocenter_vec_cos": 0.9948319643735886,
+   "center_logit_r": 0.993190199136734,
+   "center_spread_ratio": 1.0011161863803864,
+   "center_vec_cos": 0.9966288357973099
+  },
+  {
+   "layer": 6,
+   "nocenter_logit_r": 0.9869150817394257,
+   "nocenter_spread_ratio": 1.0036974549293518,
+   "nocenter_vec_cos": 0.9950028508901596,
+   "center_logit_r": 0.9931735098361969,
+   "center_spread_ratio": 1.000933825969696,
+   "center_vec_cos": 0.9971608072519302
+  },
+  {
+   "layer": 7,
+   "nocenter_logit_r": 0.986987292766571,
+   "nocenter_spread_ratio": 1.004312664270401,
+   "nocenter_vec_cos": 0.9950360804796219,
+   "center_logit_r": 0.9931444674730301,
+   "center_spread_ratio": 1.0010043382644653,
+   "center_vec_cos": 0.9973094016313553
+  },
+  {
+   "layer": 8,
+   "nocenter_logit_r": 0.9895360320806503,
+   "nocenter_spread_ratio": 1.0034282207489014,
+   "nocenter_vec_cos": 0.9946424067020416,
+   "center_logit_r": 0.9931662678718567,
+   "center_spread_ratio": 1.0014401078224182,
+   "center_vec_cos": 0.9962211102247238
+  },
+  {
+   "layer": 9,
+   "nocenter_logit_r": 0.9876803159713745,
+   "nocenter_spread_ratio": 1.0040867328643799,
+   "nocenter_vec_cos": 0.9948690980672836,
+   "center_logit_r": 0.9931163042783737,
+   "center_spread_ratio": 1.0014504194259644,
+   "center_vec_cos": 0.9971262812614441
+  },
+  {
+   "layer": 10,
+   "nocenter_logit_r": 0.988462507724762,
+   "nocenter_spread_ratio": 1.0031946301460266,
+   "nocenter_vec_cos": 0.9948949366807938,
+   "center_logit_r": 0.9931259006261826,
+   "center_spread_ratio": 1.001266747713089,
+   "center_vec_cos": 0.9968183487653732
+  },
+  {
+   "layer": 11,
+   "nocenter_logit_r": 0.9904670268297195,
+   "nocenter_spread_ratio": 1.0020513832569122,
+   "nocenter_vec_cos": 0.9948458522558212,
+   "center_logit_r": 0.9931657314300537,
+   "center_spread_ratio": 1.0011023879051208,
+   "center_vec_cos": 0.9959817081689835
+  },
+  {
+   "layer": 12,
+   "nocenter_logit_r": 0.987528458237648,
+   "nocenter_spread_ratio": 1.0065845847129822,
+   "nocenter_vec_cos": 0.9945186078548431,
+   "center_logit_r": 0.9931488186120987,
+   "center_spread_ratio": 1.0010613203048706,
+   "center_vec_cos": 0.9967227429151535
+  },
+  {
+   "layer": 13,
+   "nocenter_logit_r": 0.9749093949794769,
+   "nocenter_spread_ratio": 1.0170770585536957,
+   "nocenter_vec_cos": 0.995263010263443,
+   "center_logit_r": 0.9930064827203751,
+   "center_spread_ratio": 1.0006217062473297,
+   "center_vec_cos": 0.9981872886419296
+  },
+  {
+   "layer": 14,
+   "nocenter_logit_r": 0.990232527256012,
+   "nocenter_spread_ratio": 1.0019255876541138,
+   "nocenter_vec_cos": 0.9948672652244568,
+   "center_logit_r": 0.9932155013084412,
+   "center_spread_ratio": 1.0009469389915466,
+   "center_vec_cos": 0.996511310338974
+  },
+  {
+   "layer": 15,
+   "nocenter_logit_r": 0.9872326403856277,
+   "nocenter_spread_ratio": 1.004316121339798,
+   "nocenter_vec_cos": 0.9949486553668976,
+   "center_logit_r": 0.9932235479354858,
+   "center_spread_ratio": 1.0011599659919739,
+   "center_vec_cos": 0.9966284185647964
+  },
+  {
+   "layer": 16,
+   "nocenter_logit_r": 0.9889401644468307,
+   "nocenter_spread_ratio": 1.0045325458049774,
+   "nocenter_vec_cos": 0.9949090331792831,
+   "center_logit_r": 0.9932400286197662,
+   "center_spread_ratio": 1.000964879989624,
+   "center_vec_cos": 0.9969759285449982
+  },
+  {
+   "layer": 17,
+   "nocenter_logit_r": 0.9894907623529434,
+   "nocenter_spread_ratio": 1.0048584043979645,
+   "nocenter_vec_cos": 0.9945945739746094,
+   "center_logit_r": 0.9930626899003983,
+   "center_spread_ratio": 1.0016918778419495,
+   "center_vec_cos": 0.9966013431549072
+  },
+  {
+   "layer": 18,
+   "nocenter_logit_r": 0.9869884848594666,
+   "nocenter_spread_ratio": 1.0072367191314697,
+   "nocenter_vec_cos": 0.9942501783370972,
+   "center_logit_r": 0.9930608719587326,
+   "center_spread_ratio": 1.0016132295131683,
+   "center_vec_cos": 0.9971697628498077
+  },
+  {
+   "layer": 19,
+   "nocenter_logit_r": 0.9763224869966507,
+   "nocenter_spread_ratio": 1.0175708532333374,
+   "nocenter_vec_cos": 0.9950306117534637,
+   "center_logit_r": 0.9930352717638016,
+   "center_spread_ratio": 1.001599371433258,
+   "center_vec_cos": 0.997424989938736
+  },
+  {
+   "layer": 20,
+   "nocenter_logit_r": 0.9899959415197372,
+   "nocenter_spread_ratio": 1.0032916069030762,
+   "nocenter_vec_cos": 0.9946153610944748,
+   "center_logit_r": 0.9931779205799103,
+   "center_spread_ratio": 1.0010470747947693,
+   "center_vec_cos": 0.9964224845170975
+  },
+  {
+   "layer": 21,
+   "nocenter_logit_r": 0.9881060421466827,
+   "nocenter_spread_ratio": 1.0042582154273987,
+   "nocenter_vec_cos": 0.9947136640548706,
+   "center_logit_r": 0.993140235543251,
+   "center_spread_ratio": 1.0014017820358276,
+   "center_vec_cos": 0.9967404156923294
+  },
+  {
+   "layer": 22,
+   "nocenter_logit_r": 0.9889776557683945,
+   "nocenter_spread_ratio": 1.0032978355884552,
+   "nocenter_vec_cos": 0.9947672188282013,
+   "center_logit_r": 0.993198573589325,
+   "center_spread_ratio": 1.0011853873729706,
+   "center_vec_cos": 0.9966494590044022
+  },
+  {
+   "layer": 23,
+   "nocenter_logit_r": 0.9887979626655579,
+   "nocenter_spread_ratio": 1.0024134814739227,
+   "nocenter_vec_cos": 0.9949183613061905,
+   "center_logit_r": 0.9930415451526642,
+   "center_spread_ratio": 1.0010522902011871,
+   "center_vec_cos": 0.9967846572399139
+  },
+  {
+   "layer": 24,
+   "nocenter_logit_r": 0.9883404672145844,
+   "nocenter_spread_ratio": 1.0034539103507996,
+   "nocenter_vec_cos": 0.9949477016925812,
+   "center_logit_r": 0.9931264668703079,
+   "center_spread_ratio": 1.0012064576148987,
+   "center_vec_cos": 0.996932253241539
+  },
+  {
+   "layer": 25,
+   "nocenter_logit_r": 0.988131582736969,
+   "nocenter_spread_ratio": 1.0036169290542603,
+   "nocenter_vec_cos": 0.9949852973222733,
+   "center_logit_r": 0.9930908530950546,
+   "center_spread_ratio": 1.0012096166610718,
+   "center_vec_cos": 0.9970579892396927
+  },
+  {
+   "layer": 26,
+   "nocenter_logit_r": 0.9890287816524506,
+   "nocenter_spread_ratio": 1.002880334854126,
+   "nocenter_vec_cos": 0.9949652850627899,
+   "center_logit_r": 0.993236631155014,
+   "center_spread_ratio": 1.0011842548847198,
+   "center_vec_cos": 0.9969219714403152
+  },
+  {
+   "layer": 27,
+   "nocenter_logit_r": 0.8238827735185623,
+   "nocenter_spread_ratio": 1.6572602093219757,
+   "nocenter_vec_cos": 0.9949426800012589,
+   "center_logit_r": 0.993181437253952,
+   "center_spread_ratio": 1.001135766506195,
+   "center_vec_cos": 0.997932568192482
+  }
+ ]
+}

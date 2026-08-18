@@ -1,0 +1,437 @@
+[
+ {
+  "model": "gemma3:12b",
+  "arch": "gemma3",
+  "n_layer": 48,
+  "n_attn_layers": 48,
+  "n_head": 16,
+  "n_kv_head": 8,
+  "emb": 3840,
+  "head_dim": 256,
+  "k_bias": false,
+  "k_norm": true,
+  "q_norm": true
+ },
+ {
+  "model": "gemma3:27b",
+  "arch": "gemma3",
+  "n_layer": 62,
+  "n_attn_layers": 62,
+  "n_head": 32,
+  "n_kv_head": 16,
+  "emb": 5376,
+  "head_dim": 128,
+  "k_bias": false,
+  "k_norm": true,
+  "q_norm": true
+ },
+ {
+  "model": "gemma4:latest",
+  "arch": "gemma4",
+  "n_layer": 42,
+  "n_attn_layers": 42,
+  "n_head": 8,
+  "n_kv_head": 2,
+  "emb": 2560,
+  "head_dim": 512,
+  "k_bias": false,
+  "k_norm": true,
+  "q_norm": true
+ },
+ {
+  "model": "qwen2.5-coder:7b",
+  "arch": "qwen2",
+  "n_layer": 28,
+  "n_attn_layers": 28,
+  "n_head": 28,
+  "n_kv_head": 4,
+  "emb": 3584,
+  "head_dim": 128,
+  "k_bias": true,
+  "k_norm": false,
+  "q_norm": false,
+  "k_bias_stats": [
+   {
+    "layer": 0,
+    "bias_norm_mean": 302.2616271972656,
+    "bias_norm_max": 513.1180419921875,
+    "bias_rms": 29.505308151245117
+   },
+   {
+    "layer": 1,
+    "bias_norm_mean": 82.36727142333984,
+    "bias_norm_max": 211.31936645507812,
+    "bias_rms": 9.86312198638916
+   },
+   {
+    "layer": 2,
+    "bias_norm_mean": 29.016340255737305,
+    "bias_norm_max": 46.53986358642578,
+    "bias_rms": 2.756014347076416
+   },
+   {
+    "layer": 3,
+    "bias_norm_mean": 48.399620056152344,
+    "bias_norm_max": 98.73828887939453,
+    "bias_rms": 5.068079948425293
+   },
+   {
+    "layer": 4,
+    "bias_norm_mean": 4.850330829620361,
+    "bias_norm_max": 5.75446891784668,
+    "bias_rms": 0.4402463436126709
+   },
+   {
+    "layer": 5,
+    "bias_norm_mean": 8.700196266174316,
+    "bias_norm_max": 13.496356010437012,
+    "bias_rms": 0.8166114687919617
+   },
+   {
+    "layer": 6,
+    "bias_norm_mean": 12.975154876708984,
+    "bias_norm_max": 23.812597274780273,
+    "bias_rms": 1.2889060974121094
+   },
+   {
+    "layer": 7,
+    "bias_norm_mean": 10.146859169006348,
+    "bias_norm_max": 11.731282234191895,
+    "bias_rms": 0.9023864269256592
+   },
+   {
+    "layer": 8,
+    "bias_norm_mean": 6.757253646850586,
+    "bias_norm_max": 7.450870513916016,
+    "bias_rms": 0.598909854888916
+   },
+   {
+    "layer": 9,
+    "bias_norm_mean": 8.87657356262207,
+    "bias_norm_max": 9.790756225585938,
+    "bias_rms": 0.7862673997879028
+   },
+   {
+    "layer": 10,
+    "bias_norm_mean": 7.182443141937256,
+    "bias_norm_max": 8.642416000366211,
+    "bias_rms": 0.6401857137680054
+   },
+   {
+    "layer": 11,
+    "bias_norm_mean": 16.553913116455078,
+    "bias_norm_max": 23.477792739868164,
+    "bias_rms": 1.5227444171905518
+   },
+   {
+    "layer": 12,
+    "bias_norm_mean": 9.829726219177246,
+    "bias_norm_max": 14.17832088470459,
+    "bias_rms": 0.8975461721420288
+   },
+   {
+    "layer": 13,
+    "bias_norm_mean": 25.094881057739258,
+    "bias_norm_max": 43.950706481933594,
+    "bias_rms": 2.418485164642334
+   },
+   {
+    "layer": 14,
+    "bias_norm_mean": 14.673187255859375,
+    "bias_norm_max": 21.023595809936523,
+    "bias_rms": 1.395694613456726
+   },
+   {
+    "layer": 15,
+    "bias_norm_mean": 17.610668182373047,
+    "bias_norm_max": 26.61495590209961,
+    "bias_rms": 1.6492925882339478
+   },
+   {
+    "layer": 16,
+    "bias_norm_mean": 14.758674621582031,
+    "bias_norm_max": 19.58365821838379,
+    "bias_rms": 1.3408101797103882
+   },
+   {
+    "layer": 17,
+    "bias_norm_mean": 15.050110816955566,
+    "bias_norm_max": 18.040451049804688,
+    "bias_rms": 1.3493613004684448
+   },
+   {
+    "layer": 18,
+    "bias_norm_mean": 21.27298355102539,
+    "bias_norm_max": 26.081531524658203,
+    "bias_rms": 1.9589241743087769
+   },
+   {
+    "layer": 19,
+    "bias_norm_mean": 24.281278610229492,
+    "bias_norm_max": 37.92116165161133,
+    "bias_rms": 2.293118953704834
+   },
+   {
+    "layer": 20,
+    "bias_norm_mean": 17.171539306640625,
+    "bias_norm_max": 26.36708641052246,
+    "bias_rms": 1.612135410308838
+   },
+   {
+    "layer": 21,
+    "bias_norm_mean": 9.305410385131836,
+    "bias_norm_max": 10.826837539672852,
+    "bias_rms": 0.8269362449645996
+   },
+   {
+    "layer": 22,
+    "bias_norm_mean": 8.319009780883789,
+    "bias_norm_max": 10.071261405944824,
+    "bias_rms": 0.7430346608161926
+   },
+   {
+    "layer": 23,
+    "bias_norm_mean": 8.378106117248535,
+    "bias_norm_max": 9.330843925476074,
+    "bias_rms": 0.7434260249137878
+   },
+   {
+    "layer": 24,
+    "bias_norm_mean": 12.529143333435059,
+    "bias_norm_max": 20.97356414794922,
+    "bias_rms": 1.1973024606704712
+   },
+   {
+    "layer": 25,
+    "bias_norm_mean": 8.704030990600586,
+    "bias_norm_max": 9.940594673156738,
+    "bias_rms": 0.7791685461997986
+   },
+   {
+    "layer": 26,
+    "bias_norm_mean": 7.504826545715332,
+    "bias_norm_max": 8.244234085083008,
+    "bias_rms": 0.665474534034729
+   },
+   {
+    "layer": 27,
+    "bias_norm_mean": 256.5108337402344,
+    "bias_norm_max": 998.7119140625,
+    "bias_rms": 44.142757415771484
+   }
+  ],
+  "k_bias_norm_mean_over_layers": 36.0386426448822,
+  "k_bias_norm_max_over_layers": 998.7119140625
+ },
+ {
+  "model": "qwen2.5:7b",
+  "arch": "qwen2",
+  "n_layer": 28,
+  "n_attn_layers": 28,
+  "n_head": 28,
+  "n_kv_head": 4,
+  "emb": 3584,
+  "head_dim": 128,
+  "k_bias": true,
+  "k_norm": false,
+  "q_norm": false,
+  "k_bias_stats": [
+   {
+    "layer": 0,
+    "bias_norm_mean": 273.8220520019531,
+    "bias_norm_max": 466.6072998046875,
+    "bias_rms": 26.722301483154297
+   },
+   {
+    "layer": 1,
+    "bias_norm_mean": 64.26255798339844,
+    "bias_norm_max": 143.204833984375,
+    "bias_rms": 6.994775295257568
+   },
+   {
+    "layer": 2,
+    "bias_norm_mean": 29.05036735534668,
+    "bias_norm_max": 51.463802337646484,
+    "bias_rms": 2.8454430103302
+   },
+   {
+    "layer": 3,
+    "bias_norm_mean": 49.04313659667969,
+    "bias_norm_max": 104.05986785888672,
+    "bias_rms": 5.225776672363281
+   },
+   {
+    "layer": 4,
+    "bias_norm_mean": 5.595588207244873,
+    "bias_norm_max": 7.20888614654541,
+    "bias_rms": 0.5030326843261719
+   },
+   {
+    "layer": 5,
+    "bias_norm_mean": 7.330349922180176,
+    "bias_norm_max": 9.66750717163086,
+    "bias_rms": 0.6646861433982849
+   },
+   {
+    "layer": 6,
+    "bias_norm_mean": 11.714742660522461,
+    "bias_norm_max": 22.0494441986084,
+    "bias_rms": 1.1788660287857056
+   },
+   {
+    "layer": 7,
+    "bias_norm_mean": 11.168564796447754,
+    "bias_norm_max": 18.649532318115234,
+    "bias_rms": 1.0595293045043945
+   },
+   {
+    "layer": 8,
+    "bias_norm_mean": 6.463102340698242,
+    "bias_norm_max": 7.356667995452881,
+    "bias_rms": 0.5742262601852417
+   },
+   {
+    "layer": 9,
+    "bias_norm_mean": 8.542628288269043,
+    "bias_norm_max": 9.233905792236328,
+    "bias_rms": 0.7572802901268005
+   },
+   {
+    "layer": 10,
+    "bias_norm_mean": 8.269726753234863,
+    "bias_norm_max": 10.80612850189209,
+    "bias_rms": 0.7439067959785461
+   },
+   {
+    "layer": 11,
+    "bias_norm_mean": 7.304147720336914,
+    "bias_norm_max": 8.272270202636719,
+    "bias_rms": 0.6482206583023071
+   },
+   {
+    "layer": 12,
+    "bias_norm_mean": 11.024337768554688,
+    "bias_norm_max": 22.07631492614746,
+    "bias_rms": 1.1366183757781982
+   },
+   {
+    "layer": 13,
+    "bias_norm_mean": 26.97608184814453,
+    "bias_norm_max": 51.82272720336914,
+    "bias_rms": 2.74499773979187
+   },
+   {
+    "layer": 14,
+    "bias_norm_mean": 10.487030982971191,
+    "bias_norm_max": 16.15337371826172,
+    "bias_rms": 0.974712073802948
+   },
+   {
+    "layer": 15,
+    "bias_norm_mean": 13.661066055297852,
+    "bias_norm_max": 31.167509078979492,
+    "bias_rms": 1.502428412437439
+   },
+   {
+    "layer": 16,
+    "bias_norm_mean": 14.448139190673828,
+    "bias_norm_max": 19.938425064086914,
+    "bias_rms": 1.3420840501785278
+   },
+   {
+    "layer": 17,
+    "bias_norm_mean": 11.050771713256836,
+    "bias_norm_max": 15.051172256469727,
+    "bias_rms": 0.9993071556091309
+   },
+   {
+    "layer": 18,
+    "bias_norm_mean": 10.951650619506836,
+    "bias_norm_max": 11.763439178466797,
+    "bias_rms": 0.9702295660972595
+   },
+   {
+    "layer": 19,
+    "bias_norm_mean": 23.014671325683594,
+    "bias_norm_max": 52.34542465209961,
+    "bias_rms": 2.5531556606292725
+   },
+   {
+    "layer": 20,
+    "bias_norm_mean": 8.074281692504883,
+    "bias_norm_max": 8.774273872375488,
+    "bias_rms": 0.7150417566299438
+   },
+   {
+    "layer": 21,
+    "bias_norm_mean": 8.333937644958496,
+    "bias_norm_max": 8.821431159973145,
+    "bias_rms": 0.7373418807983398
+   },
+   {
+    "layer": 22,
+    "bias_norm_mean": 7.748318672180176,
+    "bias_norm_max": 8.824689865112305,
+    "bias_rms": 0.6882507801055908
+   },
+   {
+    "layer": 23,
+    "bias_norm_mean": 7.731855869293213,
+    "bias_norm_max": 8.377535820007324,
+    "bias_rms": 0.6844063401222229
+   },
+   {
+    "layer": 24,
+    "bias_norm_mean": 7.672113418579102,
+    "bias_norm_max": 8.613152503967285,
+    "bias_rms": 0.6816486120223999
+   },
+   {
+    "layer": 25,
+    "bias_norm_mean": 8.243124008178711,
+    "bias_norm_max": 12.126402854919434,
+    "bias_rms": 0.7576618194580078
+   },
+   {
+    "layer": 26,
+    "bias_norm_mean": 6.733640670776367,
+    "bias_norm_max": 7.550424098968506,
+    "bias_rms": 0.5966452956199646
+   },
+   {
+    "layer": 27,
+    "bias_norm_mean": 236.78170776367188,
+    "bias_norm_max": 920.3369750976562,
+    "bias_rms": 40.67929458618164
+   }
+  ],
+  "k_bias_norm_mean_over_layers": 31.982131923948014,
+  "k_bias_norm_max_over_layers": 920.3369750976562
+ },
+ {
+  "model": "qwen3.6:27b",
+  "arch": "qwen35",
+  "n_layer": 64,
+  "n_attn_layers": 16,
+  "n_head": 24,
+  "n_kv_head": 4,
+  "emb": 5120,
+  "head_dim": 256,
+  "k_bias": false,
+  "k_norm": true,
+  "q_norm": true
+ },
+ {
+  "model": "qwen3:14b",
+  "arch": "qwen3",
+  "n_layer": 40,
+  "n_attn_layers": 40,
+  "n_head": 40,
+  "n_kv_head": 8,
+  "emb": 5120,
+  "head_dim": 128,
+  "k_bias": false,
+  "k_norm": true,
+  "q_norm": true
+ }
+]
