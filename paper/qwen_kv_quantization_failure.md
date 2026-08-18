@@ -1134,6 +1134,52 @@ token is a 8.3% storage increase for a 0.005 gain in logit correlation, which
 all of the freely available gain, and the obvious refinements either tie, hurt, or
 cost more than they return.
 
+### 6.18 Causal test: the failure can be induced in an immune model on demand
+
+*(added 2026-08-18, closing Limitation 18)*
+
+Every naturally-occurring failure in this paper belongs to Qwen2.5, which leaves
+open whether the mechanism is real or whether Qwen2.5 is simply peculiar. We
+tested it by **manufacturing the failure in a model that does not have it**.
+
+A fixed random per-head direction `μ` is added to every key immediately before
+quantization and subtracted immediately after dequantization. In exact arithmetic
+this is a no-op — the model is untouched and sees its own keys. The only thing
+that changes is that the quantizer must now represent a large shared component.
+Sweeping its magnitude as a multiple of the mean key norm, on Llama-3.2-1B at
+3 bits:
+
+| Injected ‖μ‖ | Uncentered PPL | ×baseline | vector cosine | worst-layer logit r | **Centered PPL** |
+|---:|---:|---:|---:|---:|---:|
+| 0 (natural) | 17.26 | ×1.07 | 0.9950 | 0.9844 | ×1.06 |
+| 1× | 18.60 | ×1.15 | 0.9886 | 0.9709 | ×1.06 |
+| 3× | 84.45 | ×5.22 | 0.9446 | 0.8899 | ×1.06 |
+| 10× | 10,449 | **×646** | 0.6799 | 0.5864 | ×1.07 |
+| 30× | 29,603 | **×1,831** | 0.3022 | 0.3243 | **×1.09** |
+
+Source: [`results/inject_llama3.2-1b.json`](experiments/results/inject_llama3.2-1b.json)
+
+Three things follow, and the first is the one this paper most needed:
+
+1. **The mechanism is causal and not Qwen-specific.** A shared key component is
+   sufficient to reproduce the entire failure — ×1,831, matching the worst
+   naturally-occurring Qwen2.5 cell — in a Llama model that is otherwise immune.
+   Qwen2.5 is not peculiar; it merely *has* a large shared component naturally.
+2. **The damage is dose-dependent**, rising monotonically with ‖μ‖ across three
+   orders of magnitude. §4.2 predicts exactly this.
+3. **Centering neutralises it completely at every dose.** From ×1 to ×1,831 of
+   uncentered damage, the centered arm never leaves ×1.06–×1.09.
+
+**This does not extend the metric result of §6.15, and we are explicit about
+that.** In the injected regime, vector cosine *does* track the damage (0.30 at the
+worst dose) and would correctly flag these configurations. The metric's blindness
+is specific to the *naturally occurring* regime, where the shared component is
+large relative to the token-specific deviation but the reconstructed vector still
+scores 0.9948 because the mean dominates the vector being reconstructed. So §6.18
+validates the **mechanism**; §6.15's metric claim continues to rest on the eight
+natural failures, and Limitation 18 stands with respect to the metric even though
+it is now discharged with respect to the mechanism.
+
 ---
 
 ## 7. Ablations
