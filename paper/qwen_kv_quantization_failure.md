@@ -15,7 +15,8 @@ model-specific function of one cheap scalar which can be calibrated without
 running the quantizer at all (§6.22, the paper's strongest result).
 
 Sections 3–6.5 report previously-run committed experiments; §§6.6–6.22 report
-measurements made on 2026-08-18. Section 7 lists the ablations still
+measurements made on 2026-08-18, including several that refute earlier claims
+of this same manuscript. Section 7 lists the ablations still
 outstanding, and §9 the limitations, including hypotheses this project formed
 and then refuted with its own data.
 **Repository:** https://github.com/dhawalc/turboQuantDC
@@ -198,11 +199,11 @@ the configuration precisely enough to be checked.
 
 ## 2. Background and Related Work
 
-> **Reference-verification note.** Citation details in this draft were written
-> without network access. Every entry in the References section must be verified
-> against the published record before this manuscript is circulated externally.
-> Entries whose venue or identifier we could not confirm offline are marked
-> `[verify]`.
+> **Reference-verification note.** Every arXiv identifier in the References
+> section was checked against the arXiv API on 2026-08-18 and resolves with
+> matching title and first author. `[verify]` now marks only what that check
+> cannot confirm — conference-venue attributions and the print-era references.
+> See the note at the head of the References section.
 
 ### 2.1 KV-cache quantization
 
@@ -341,8 +342,8 @@ with different quantizers, before we found them ourselves or concurrently with u
   observation of the family-specificity. Notably, their choice of *which* layers
   to protect — first and last — is exactly what our per-layer profile predicts:
   on Qwen2.5-7B at 3 bits the two worst layers by attention-logit correlation
-  are layer 0 (0.54) and layer 27 (0.80), with every layer in between at ≥0.92
-  (Figure 1). Two codebases, two quantizers, the same two layers.
+  are layer 0 (0.54) and layer 27 (0.80), with every layer in between above 0.91
+  (next-worst is layer 1 at 0.92; Figure 1). Two codebases, two quantizers, the same two layers.
 - **In the same thread** (user sztlink, 2026-05-06): a KLD-based check of the
   q4_0 claim scores "close" (98.81) while a trajectory-preservation harness rates
   the same configuration degraded — an independent sighting of the central metric
@@ -512,7 +513,7 @@ the attention distribution.
 
 The hypothesis is worth stating because it is falsifiable. It predicts:
 
-- **P1.** Increasing bit-width should *not* rescue the failure, because the
+- **P1.** *(status revised 2026-08-18 — see §6.16.)* Increasing bit-width should *not* rescue the failure, because the
   mismatch is distributional rather than resolution-limited. — **Consistent with
   observation** (§3.2: 4-bit on 7B is still PPL 1,049).
 - **P2.** The failure should be attributable to the key path specifically, and
@@ -1215,14 +1216,14 @@ maps its boundary — but its errors are structured, not random:
 - **Its false passes are the moderate uniform-starvation cells** of §6.19
   (1-bit Llama/SmolLM2), which no reconstruction-side statistic can see.
 - **Its false alarms are mechanistically real.** The five healthy cells below
-  0.81 — OPT-2.7b and Pythia-2.8b at 2–4 bits, Granite at 1 bit — are models
-  whose score structure genuinely is damaged (OPT's keys are mean-dominated,
-  ρ = 2.15, §6.21) but which happen to tolerate it. The "false alarm" is a
+  0.81 — OPT-2.7B at 2–3 bits, Pythia-2.8B at 3–4 bits, Granite-3.3-2B at
+  1 bit — are models whose score structure genuinely is damaged (OPT's keys are mean-dominated,
+  ρ = 2.15, §6.20) but which happen to tolerate it. The "false alarm" is a
   true positive about the quantizer and a false positive about the model —
   the distinction §6.22 formalizes.
 
 **Why this is the durable result.** Computing the statistic requires one
-forward pass over a short calibration text and a few hundred random probe
+forward pass over a short calibration text and 128 random probe
 directions — no labels, no perplexity run. It is strictly cheaper than the
 measurement it predicts, and for the catastrophic failure mode this paper
 documents, it is the difference between shipping and not shipping a broken
@@ -1281,7 +1282,7 @@ keys at 3 bits, scoring with the worst-layer logit correlation validated in §6.
 Source: [`results/precondition_qwen3.5-4b_3bit.json`](experiments/results/precondition_qwen3.5-4b_3bit.json)
 
 This is a negative result and we report it as one. Per-channel whitening is
-**exactly** as good as plain mean-removal — the anisotropy it corrects is
+**indistinguishable** from plain mean-removal (within 5e-5) — the anisotropy it corrects is
 apparently not what the quantizer is losing. Standardizing each rotated coordinate
 is actively harmful, costing more than centering gains, presumably because it
 destroys the relative coordinate magnitudes that the inner product depends on.
@@ -1296,7 +1297,7 @@ cost more than they return.
 
 ### 6.18 Causal test: the failure can be induced in an immune model on demand
 
-*(added 2026-08-18, closing Limitation 18)*
+*(added 2026-08-18, discharging the mechanism half of Limitation 18)*
 
 Every naturally-occurring failure in this paper belongs to Qwen2.5, which leaves
 open whether the mechanism is real or whether Qwen2.5 is simply peculiar. We
@@ -1322,8 +1323,9 @@ Source: [`results/inject_llama3.2-1b.json`](experiments/results/inject_llama3.2-
 Three things follow, and the first is the one this paper most needed:
 
 1. **The mechanism is causal and not Qwen-specific.** A shared key component is
-   sufficient to reproduce the entire failure — ×1,831, matching the worst
-   naturally-occurring Qwen2.5 cell — in a Llama model that is otherwise immune.
+   sufficient to reproduce the entire failure — ×1,831, exceeding the worst
+   naturally-occurring Qwen2.5 wikitext cell (×1,416) and of the same order as
+   its Gutenberg replicate (×2,929, §6.13) — in a Llama model that is otherwise immune.
    Qwen2.5 is not peculiar; it merely *has* a large shared component naturally.
 2. **The damage is dose-dependent**, rising monotonically with ‖μ‖ across three
    orders of magnitude. §4.2 predicts exactly this.
@@ -1336,9 +1338,9 @@ worst dose) and would correctly flag these configurations. The metric's blindnes
 is specific to the *naturally occurring* regime, where the shared component is
 large relative to the token-specific deviation but the reconstructed vector still
 scores 0.9948 because the mean dominates the vector being reconstructed. So §6.18
-validates the **mechanism**; §6.15's metric claim continues to rest on the eight
-natural failures, and Limitation 18 stands with respect to the metric even though
-it is now discharged with respect to the mechanism.
+validates the **mechanism**; §6.15's metric claim rests instead on the 17
+natural catastrophic cells of §6.14 and §6.20 — two Qwen generations, two
+seeds, two corpora, plus Pythia — and Limitation 18 is revised accordingly.
 
 ### 6.19 Stress test: 1-bit keys, and the scope boundary of every cheap proxy
 
@@ -1348,8 +1350,9 @@ metric, found by deliberately trying to break it.)*
 §6.15's validation had a weakness we set out to close: every broken cell was
 Qwen-family, so the "detector" had only ever been tested against one damage
 mechanism. To manufacture natural failures with a *different* mechanism — pure
-resolution starvation, no shared-component pathology — we ran the nine most
-robust models of the atlas at **1-bit keys** (plus the 1-bit residual signs the
+resolution starvation, no shared-component pathology — we took the nine small
+atlas models that show no catastrophic failure at 2–4 bits (all ≤ ×1.26) and
+ran them at **1-bit keys** (plus the 1-bit residual signs the
 pipeline always stores), centering on and off:
 
 | Model | ctr off: PPL ratio | lr_min | ctr on: PPL ratio | lr_min | vec_cos (on) |
@@ -1457,14 +1460,16 @@ Four conclusions:
 3. **The KV-head refutation of §6.14 survives another confound check.** The
    Qwen1.5 → Qwen2 transition did introduce GQA, and within Qwen the pathology
    coincides exactly with that introduction — but Qwen3.5-0.8B (2 KV heads,
-   GQA) and every non-Qwen GQA model in the atlas are immune, and Qwen3.5's
-   immunity arrives *without abandoning GQA*. GQA is where the pathology
+   GQA) and every non-Qwen GQA model in the atlas is immune to the
+   mean-dominance collapse at 2–4 bits (the 1-bit Llama-3.2 failures of §6.19
+   are a different, resolution-starvation mechanism), and Qwen3.5's immunity
+   arrives *without abandoning GQA*. GQA is where the pathology
    appeared in this lineage, not what causes it. The remaining candidate is the
    Qwen2-era training recipe, which persisted through Qwen2.5 and was changed
    for Qwen3/3.5.
 4. **The detector behaves correctly on all six new catastrophic cells**
-   (lr_min 0.221–0.738, far below the 0.83 threshold, concentrated-collapse
-   geometry), and on all immune lineage cells (≥0.887).
+   (lr_min 0.221–0.738, far below the 0.81 operating point,
+   concentrated-collapse geometry), and on all immune lineage cells (≥0.887).
 
 Together with §6.14, every catastrophic natural failure observed in this
 project's data is now precisely delimited: **Qwen2 and Qwen2.5 at any tested
@@ -1516,8 +1521,8 @@ survives RoPE.
 | 27 | 921.7 | 20.0 | **920.5** | 0.02 | 0.58 |
 
 Source: [`results/mu_origin_qwen2.5-7b.json`](experiments/results/mu_origin_qwen2.5-7b.json)
-(RoPE survival ‖μ_post‖/‖μ_pre‖ is 0.78–1.00 everywhere — the mean is not
-averaged away by position rotation.)
+(RoPE survival ‖μ_post‖/‖μ_pre‖ is 0.76–1.00 everywhere, mean 0.86 — the mean
+is not averaged away by position rotation.)
 
 **The mean has two sources, and they partition the network by layer.**
 
@@ -1529,7 +1534,8 @@ averaged away by position rotation.)
    the independent llama.cpp mitigation of §2.6 protects.
 2. **The middle layers are massive activations.** From layer 4 to 26,
    `cos(W_k E[z], μ) = 0.91–0.96` and `W_k E[z]` outweighs the bias — with 16
-   of 3,584 residual channels (0.45%) carrying ~60–90% of `E[z]`'s energy.
+   of 3,584 residual channels (0.45%) carrying 58–82% of `E[z]`'s energy in these
+   layers (up to 92% at layer 1).
    This is the massive-activations/attention-sink structure of the prior
    literature, imaged through the key projection.
 
@@ -1548,7 +1554,7 @@ into the cache layout (it is a per-layer constant), at zero runtime cost —
 worth knowing for engines where a running mean is inconvenient.
 
 **The bias source, traced through the lineage in checkpoint bytes.** Since
-`b_k` is 512 floats per layer, it can be read from the published safetensors
+`b_k` is only kv_heads × head_dim floats per layer (256–2,048 in this lineage), it can be read from the published safetensors
 by HTTP range request without downloading any model. Per-layer ‖b_k‖ across
 the lineage:
 
@@ -1640,9 +1646,22 @@ is what makes the prediction cheap.
 - *Why no universal threshold exists* (§6.15): the map from proxy to damage is
   model-specific, so any single cutoff must be wrong for some model. Fitting
   the best **model-agnostic** map from the same scalar (leave-one-model-out)
-  gives a 90th-percentile error of ×3.5 against the per-model curve's ×1.23 —
+  gives a 90th-percentile error of ×3.5 against the per-model curve's ×1.22 —
   the per-model calibration is where the accuracy lives, and it is exactly
   what a universal threshold cannot have.
+- *Which ingredient does which job.* These are separable and we separate them.
+  Repeating the whole procedure with **per-vector cosine** as the abscissa,
+  each model still getting its own curve, gives R² = 0.947 on the 14 cells
+  with damage above ×1.5 — statistically indistinguishable from the
+  score-space abscissa's 0.952. **Per-model calibration, not the choice of
+  scalar, is what makes damaged-cell magnitudes predictable.** The scalar
+  matters elsewhere: over all 96 cells cosine collapses to **R² = −0.004**
+  against 0.971, because within a model the cosine-to-damage map is not
+  monotone across the near-lossless mass, and as a ×5 catastrophe gate cosine
+  produces five false alarms against one. So §6.15's Pearson −0.003 should not
+  be read as "cosine contains no signal"; it contains signal that is
+  unusable without per-model calibration and unreliable as a gate even with
+  it.
 - *Why the 1-bit failures were invisible* (§6.19): identical proxy readings on
   nine models, but the curves differ. Llama-3.2-1B's curve is steep and
   SmolLM2's is flat, so the same score-noise costs ×4.0 on one and ×2.0 on the
@@ -1662,11 +1681,23 @@ token-specific deviation that carries all the signal. §4.2's mechanism is
 therefore a statement about the *shape of the curve*, and the pathology is
 extreme sensitivity, not a separate failure mode.
 
-**A certification protocol follows directly.** Five noise passes per model
-(one-time, ~30 s) plus one proxy pass per candidate configuration (~2 s) predicts
-end-to-end damage to within about ×1.2 at the 90th percentile, with no
-perplexity evaluation of the quantizer at any point. This is what §6.15's
-statistic was reaching for and could not deliver alone.
+**A certification protocol follows directly.** Five to eleven *perplexity*
+evaluations under injected noise per model (one-time), then one quantized
+forward pass per candidate configuration to read its score-space noise — that
+pass is label-free and needs only a short calibration text. This predicts
+end-to-end damage to within about ×1.2 at the 90th percentile without ever
+running a perplexity evaluation *of the candidate configuration*, which is the
+cost that scales with the number of configurations under consideration.
+
+**What the curve does and does not add.** Within a single model the curve is a
+monotone rescaling of the proxy, so it never changes the *ranking* of that
+model's configurations — the proxy alone already orders them. What the curve
+supplies is the **magnitude**, and with it cross-model comparability: it turns
+"configuration A is noisier than B" into "configuration A costs ×4.0". Pooled
+across models, converting the raw proxy into predicted damage raises Spearman
+correlation with true damage from 0.793 to 0.880. §6.19's resolution should
+therefore be read as *the magnitude becomes recoverable once the curve is
+known*, not that the ordering was previously unknowable.
 
 **Held-out validation at bit-widths the analysis never saw.** An April
 bit-width sweep on Qwen2.5-1.5B measured 5-, 6- and 8-bit keys — precisions
@@ -1693,8 +1724,9 @@ it was linear interpolation from the origin. Adding six small-σ points
 interest actually live; a fixed σ grid is not adequate for steep models.
 
 **Honest residuals and the boundary of the law.** After refinement the worst
-remaining errors are systematic and informative: **1-bit centered cells are
-under-predicted on every model where they exist** (Llama-3.2-1B ×1.55 against
+residual is Qwen2.5-1.5B at 4 bits uncentered; three of the next four are
+1-bit centered cells, and those are the systematic pattern — **1-bit centered
+cells are under-predicted on every model where they exist** (Llama-3.2-1B ×1.55 against
 ×4.00; Llama-3.2-3B ×1.20 against ×2.54; SmolLM2 ×1.16 against ×2.02), and
 Qwen2.5-1.5B at 4 bits is under-predicted (×107 against ×376). One-bit indices
 are the most structured, least Gaussian error in this study, so this is where
@@ -1706,9 +1738,9 @@ next test.
 
 | True damage | cells | median error |
 |---|---:|---:|
-| near-lossless (<×1.1) | 68 | ×1.01 |
+| near-lossless (<×1.1) | 68 | ×1.00 |
 | mild (×1.1–×2) | 18 | ×1.10 |
-| moderate (×2–×10) | 6 | ×1.56 |
+| moderate (×2–×10) | 6 | ×1.52 |
 | catastrophic (>×10) | 4 | ×1.39 |
 
 Used as a **catastrophe gate** it is excellent: at a ×5 threshold it produces
@@ -1797,10 +1829,12 @@ novelty is for reviewers; the honest statement is that the *instrument* is
 borrowed, the *coordinate* and the *regime* are ours, and the prior art above
 belongs in any writeup of this result.
 
-**Scope.** 13 models, one corpus, one quantizer family, keys only, single seed;
-curves interpolated from five points with linear extrapolation beyond the last
-(flagged per cell in the output). The models were chosen to span the damage
-range, not sampled from any population.
+**Scope.** 13 models, one corpus, one quantizer family, keys only, single seed.
+No cell required extrapolation beyond the largest measured σ; 24 of 96 cells
+fall *below* the smallest measured σ and are predicted by linear interpolation
+from an assumed zero-noise/zero-damage anchor, which is the weakness §6.22's
+resolution finding addresses. The models were chosen to span the damage range,
+not sampled from any population.
 
 ---
 
@@ -2089,16 +2123,20 @@ relative logit structure that generation depends on.
     from its published tensor manifest and a few kilobytes of range-fetched weight
     data. No activation, quantizer or perplexity measurement was made on it, and
     the Qwen3-8B proxy differs from it on KV-head count (8 vs 4), head dimension
-    (128 vs 256) and stack type (dense vs hybrid). The §6.11 prediction is a
-    prediction.
-17. **`n = 2` for the cross-architecture comparison.** §6.10's inference that
-    severity tracks the tail of the ρ distribution rather than its centre rests on
-    two models, one run each.
+    (128 vs 256) and stack type (dense vs hybrid). The §6.11 prediction was
+    tested on the closest available proxy (Qwen3.5-4B, §6.12) and refuted; it
+    remains untested on Qwen3.8-27B itself.
+17. **Small `n` for the cross-architecture mechanism comparison.** §6.10's
+    quantizer-loop comparison rests on three models and the ρ measurement on
+    eleven (§6.20, §6.21, §6.22), all single-run. The tail-not-centre inference
+    is now supported by the lineage table, where shared *energy* is ~50% on
+    both sides of the failure boundary while the ρ tail differs by an order of
+    magnitude — but every cell is still n = 1.
 
 *Added for §6.13–§6.17:*
 
 18. **The metric result rests mostly on one lineage's failures — now with the
-    boundary mapped rather than open.** *(revised 2026-08-18 after §6.18–§6.20.)*
+    boundary mapped rather than open, and mean-dominance shown insufficient.** *(revised 2026-08-18 after §6.18–§6.20.)*
     As originally stated, every broken cell was Qwen-family and the proxy's
     perfect separation could have reflected one failure mode. Both follow-ups
     have now been run. The synthetic-injection experiment (§6.18) shows the
@@ -2109,9 +2147,13 @@ relative logit structure that generation depends on.
     score-space collapse, structurally blind to uniform moderate damage. What
     remains true and unresolved: every *catastrophic* natural failure (>×20)
     observed to date, here and in the independent reports of §2.6, is a
-    Qwen-lineage model. Whether any non-Qwen model exists whose keys are
-    mean-dominated enough to collapse catastrophically is unknown; none of the
-    ten non-Qwen models tested is.
+    Qwen-lineage model. But mean-dominance alone is now known to be
+    *insufficient*: Pythia-2.8B (mean ρ 8.43) and OPT-2.7B (2.15) are the two
+    most mean-dominated models measured anywhere in this study and neither
+    collapses (×2.35 and ×1.06). §6.22 supplies the missing factor — those
+    models' noise-response curves are shallow, so the same score-space damage
+    costs them little. Mean-dominance sets how much score-space noise a
+    compressor produces; the curve sets what that noise costs.
 19. **Single seed, single corpus, single context length.** Every cell is one run
     on the first 4,095 tokens of wikitext-2 with a 512-token window. No variance
     estimates. The effect sizes for the broken cells are enormous, but the
@@ -2128,10 +2170,12 @@ relative logit structure that generation depends on.
     are in the atlas, and Ministral-8B measures immune (×1.07 worst,
     consistent with the independent Mistral-7B observation of §2.6). The one
     remaining absence is Qwen2.5-32B, documented in §6.14.
-12. **The shared component's origin is only partly explained.** §6.8 shows it is
-    not the `k_proj` bias. The residual attribution — `W_k · E[x]`, i.e. the
-    residual stream's own persistent mean — is inferred by elimination, not
-    measured. Measuring `E[x]` and propagating it through `W_k` would settle it.
+12. **Resolved 2026-08-18 (§6.21).** `E[z]` was measured with forward hooks
+    and propagated through `W_k` exactly. The residual-stream attribution holds
+    for the middle layers (cos(W_k E[z], μ) = 0.91–0.96, layers 4–26), while
+    the boundary layers turn out to be pure `k_proj` bias (‖b_k‖ 605–921 at
+    layers 0 and 27 of Qwen2.5-7B). The original either/or framing of §6.8 was
+    the error; both sources are real and they partition by layer.
 13. **Corpus deviation in §6.7–§6.9.** wikitext-2 is not cached on this host and
     these runs were performed download-free, so the 1,024-token corpus is
     committed repository prose plus the real wikitext-2 excerpt that already lives
