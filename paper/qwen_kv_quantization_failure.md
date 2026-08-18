@@ -107,7 +107,12 @@ within ×1.5. The curve is calibrated on unstructured Gaussian noise and tested
 on structured quantizer error, so the amount of score-space noise — not its
 structure — is what determines damage. This explains why no universal proxy
 threshold can exist (the map from proxy to damage is a model property), and it
-converts compressor certification into a cheap procedure. Its limits are
+converts compressor certification into a cheap procedure. The instrument is
+adapted from weight-quantization work that calibrates an error-to-perplexity
+coefficient by noise insertion (the Linearity Theorem / HIGGS); what is new
+here is the score-space coordinate, the KV-cache setting, and validity in the
+catastrophic regime where that work's quadratic error model is stated not to
+hold. Its limits are
 stated: it cannot resolve a 2% tax from an 8% one, one-bit quantization is
 systematically under-predicted, and the curve is not predictable from the
 key-mean structure, so both factors must be measured.
@@ -1750,6 +1755,48 @@ will produce; the curve (five to eleven passes) tells you what that noise
 costs. Neither substitutes for the other, and this is why §6.15's proxy alone
 could never have been sufficient.
 
+**Position relative to prior work — the method skeleton is not new.** An
+adversarial prior-art search run on 2026-08-18 found that the load-bearing
+procedural idea is already published, and we state that plainly:
+
+- **The Linearity Theorem / HIGGS** (Malinovskii et al., arXiv:2411.17525,
+  NAACL 2025) introduces, for *weight* quantization, exactly this instrument:
+  "a synthetic noise insertion procedure whose role is to mimic the error due
+  to compression", with "multiple (J) calibration noise levels … uniformly
+  sampled from applicability region" (J = 15) used to fit per-layer
+  coefficients α_l that convert reconstruction error into predicted
+  perplexity. Anyone claiming novelty for "inject Gaussian noise at several
+  magnitudes, fit a per-model response, predict perplexity" would be
+  contested by this paper, and rightly.
+- **RateQuant** (Zuo et al., arXiv:2605.06675, 2026) publishes the
+  factorization itself for KV caches — expected loss as a sum of
+  per-head *distortion* terms times *sensitivity* weights — and independently
+  reports the transfer problem we hit in §6.22 ("distortion model mismatch":
+  one quantizer's distortion curve does not carry to another). Its sensitivity
+  weights come from squared gradient norms (forward *and* backward passes),
+  and its distortion axis is raw key/value MSE.
+- **HeadQ** (arXiv:2605.03562, withdrawn) publishes the metric half — that
+  storage-space MSE is the wrong coordinate and score space is the right one —
+  across six models with falsification controls, predicting attention KL.
+
+What we did not find, and what this section contributes, is the specific
+combination: a **quantizer-free calibration in score space** for the **KV
+cache**, carried into the **catastrophic regime**. The distinction from HIGGS
+is not cosmetic. Its error model is deliberately local — perplexity is
+approximated as PPL* + α·t² inside an "applicability region", and the authors
+report that it "diverges on lower bitwidths, where the quantization error is
+higher", restricting validated use to above about 3 bits. The regime this
+paper exists to explain — 2-bit and 3-bit caches, damage of ×100 to ×1,400 —
+is precisely where that quadratic model is stated not to hold. The curve here
+is nonlinear and fitted across three orders of magnitude of damage, its
+abscissa is a score-space quantity rather than an ℓ₂ reconstruction error
+(which §6.15 shows carries no signal across models), and it is validated
+against end-to-end perplexity with R² and a held-out bit-width test rather than
+against a ranking correlation. Whether that combination is worth a claim of
+novelty is for reviewers; the honest statement is that the *instrument* is
+borrowed, the *coordinate* and the *regime* are ours, and the prior art above
+belongs in any writeup of this result.
+
 **Scope.** 13 models, one corpus, one quantizer family, keys only, single seed;
 curves interpolated from five points with linear extrapolation beyond the last
 (flagged per cell in the output). The models were chosen to span the damage
@@ -2268,7 +2315,17 @@ cached; the checkpoints themselves are roughly 15 GB and 6 GB for 7B and 3B.
 21. Gersho, A., Gray, R. M. *Vector Quantization and Signal Compression.* Kluwer,
     1992. Classical treatment of mean-removed vector quantization (§2.3).
     `[verify edition]`
-22. *(observed online 2026-08-18)* ggml-org/llama.cpp issue #21385 and its
+22. *(verified online 2026-08-18)* Malinovskii, V., Panferov, A., Ilin, I.,
+    Guo, H., Richtárik, P., Alistarh, D. *Pushing the Limits of Large Language
+    Model Quantization via the Linearity Theorem.* arXiv:2411.17525, 2024;
+    NAACL 2025 `[verify venue]`. Prior art for noise-insertion calibration of
+    a per-model error-to-perplexity coefficient, for weight quantization
+    (§6.22).
+23. *(verified online 2026-08-18)* Zuo, et al. *RateQuant: Optimal
+    Mixed-Precision KV Cache Quantization via Rate-Distortion Theory.*
+    arXiv:2605.06675, 2026. Prior art for the distortion × sensitivity
+    factorization of KV-cache damage, with gradient-based sensitivity (§6.22).
+24. *(observed online 2026-08-18)* ggml-org/llama.cpp issue #21385 and its
     comment thread: independent measurements of Qwen2.5-7B catastrophic key-cache
     quantization failure, Mistral-7B immunity, and Qwen3.5 q4_0 losslessness in a
     different codebase (§2.6).
