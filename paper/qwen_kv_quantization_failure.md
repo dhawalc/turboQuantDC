@@ -1570,11 +1570,12 @@ nothing about the quantizer enters the prediction.
 | | value |
 |---|---:|
 | cells predicted | **96** (13 models) |
-| **R² on log₁₀ damage** | **0.974** |
-| median absolute error | 0.005 log₁₀ (**×1.01**) |
-| 90th-percentile error | 0.091 log₁₀ (×1.23) |
-| worst error | 0.450 log₁₀ (×2.8) |
+| **R² on log₁₀ damage** | **0.969** |
+| median absolute error | 0.004 log₁₀ (**×1.01**) |
+| 90th-percentile error | 0.087 log₁₀ (×1.22) |
+| worst error | 0.546 log₁₀ (×3.5) |
 | true damage range covered | ×0.99 to **×1,348** |
+| **dangerous misses at a ×5 catastrophe gate** | **0 / 96** |
 
 Source: [`experiments/sensitivity_probe.py`](experiments/sensitivity_probe.py),
 [`experiments/factorization.py`](experiments/factorization.py),
@@ -1622,16 +1623,60 @@ end-to-end damage to within about ×1.2 at the 90th percentile, with no
 perplexity evaluation of the quantizer at any point. This is what §6.15's
 statistic was reaching for and could not deliver alone.
 
-**Honest residuals.** The law is not exact and its failures are systematic in
-one direction: the four worst residuals are **1-bit centered** cells
-(Llama-3.2-1B ×1.75 predicted against ×4.00 actual; Llama-3.2-3B, SmolLM2
-similarly under-predicted) and Qwen2.5-1.5B at 4 bits (×134 against ×376). Both
-patterns are under-prediction at the extremes of the bit-width range, which
-suggests the transfer from Gaussian to quantizer error degrades when the
-quantizer's error becomes strongly non-Gaussian — one-bit indices are the most
-structured error in this study. A denser σ grid and a heavier-tailed noise
-family are the obvious next tests. Until then the law should be read as a
-calibrated estimator with a factor-of-two worst case, not an identity.
+**Held-out validation at bit-widths the analysis never saw.** An April
+bit-width sweep on Qwen2.5-1.5B measured 5-, 6- and 8-bit keys — precisions
+absent from the atlas and never used in any fit here. Predicting those six
+cells from the model's Gaussian-noise curve alone:
+
+| Configuration | predicted | actual | error (log₁₀) |
+|---|---:|---:|---:|
+| 5-bit | ×5.19 | ×7.67 | −0.170 |
+| 6-bit | ×1.10 | ×1.17 | −0.026 |
+| 8-bit | ×1.00 | ×1.00 | −0.000 |
+| 5/6/8-bit + centering | ×1.00 | ×1.00 | ≤0.0004 |
+
+Median error 0.0003 log₁₀, worst ×1.5. Source:
+[`results/bitsweep_qwen2.5-1.5b.json`](experiments/results/bitsweep_qwen2.5-1.5b.json).
+
+**Curve resolution is the dominant error source, and it is fixable.** With the
+original five-point σ grid the same held-out test *over*-predicted by up to
+×4 (6-bit: ×4.70 predicted against ×1.17 actual), because for a model this
+steep the first measured point sits at score-noise 0.60 and everything below
+it was linear interpolation from the origin. Adding six small-σ points
+(σ ∈ [0.005, 0.04], 15 s of GPU time) reduced the worst held-out error from
+0.604 to 0.170 log₁₀. Curves must be sampled where the configurations of
+interest actually live; a fixed σ grid is not adequate for steep models.
+
+**Honest residuals and the boundary of the law.** After refinement the worst
+remaining errors are systematic and informative: **1-bit centered cells are
+under-predicted on every model where they exist** (Llama-3.2-1B ×1.55 against
+×4.00; Llama-3.2-3B ×1.20 against ×2.54; SmolLM2 ×1.16 against ×2.02), and
+Qwen2.5-1.5B at 4 bits is under-predicted (×107 against ×376). One-bit indices
+are the most structured, least Gaussian error in this study, so this is where
+the Gaussian-equivalence assumption should break — and it does. A
+heavier-tailed or explicitly quantization-shaped noise family is the obvious
+next test.
+
+**What the law is and is not good for.** Accuracy is strongly regime-dependent:
+
+| True damage | cells | median error |
+|---|---:|---:|
+| near-lossless (<×1.1) | 68 | ×1.01 |
+| mild (×1.1–×2) | 18 | ×1.10 |
+| moderate (×2–×10) | 6 | ×1.56 |
+| catastrophic (>×10) | 4 | ×1.39 |
+
+Used as a **catastrophe gate** it is excellent: at a ×5 threshold it produces
+**zero dangerous misses across all 96 cells** (at a ×2 threshold, four misses,
+all of them the 1-bit centered cells above). Used as a **fine-grained budget
+selector** it is not adequate: inverting each curve to pick the cheapest
+configuration meeting a "≤5% perplexity" budget yields recommendations that
+actually meet the budget in only 4 of 13 cases
+([`experiments/budget_table.py`](experiments/budget_table.py)), because in the
+near-lossless regime the quantity being predicted is smaller than the law's own
+error. Distinguishing a 2% tax from an 8% tax still requires measuring it. The
+law answers *"will this configuration destroy the model?"* cheaply and
+reliably; it does not answer *"is this configuration 3% or 6% worse?"*
 
 **Scope.** 13 models, one corpus, one quantizer family, keys only, single seed;
 curves interpolated from five points with linear extrapolation beyond the last

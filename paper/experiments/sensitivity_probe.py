@@ -15,13 +15,13 @@ For each sigma we record sliding-window perplexity AND the same proxy metrics
 (vec_cos, per-layer logit r) the atlas records for quantizer cells, so noise
 cells and quantizer cells live on a common axis. The resulting per-model curve
 
-    score-space noise (1 - logit_r)  ->  log PPL ratio
+    score-space noise (1 - worst-layer logit_r)  ->  log PPL ratio
 
-is the model's private calibration. The factorization hypothesis (SS6.22):
-uniform-damage quantizer cells (e.g. 1-bit) land ON their model's curve —
-their "proxy-invisible" damage is predictable — while mean-pathology cells
-(Qwen2/2.5 uncentered) land far ABOVE it, and the deviation is a principled
-pathology detector.
+is the model's private calibration. Result (SS6.22): quantizer cells land ON
+their model's curve in BOTH regimes (R^2 0.974 over 96 cells), so damage is a
+model-specific function of one cheap scalar. The hypothesis that mean-pathology
+cells would deviate ABOVE the curve was refuted — such models simply have
+catastrophically steep curves.
 
 Usage:
     python sensitivity_probe.py --model <hf-or-path> --name llama3.2-1b
@@ -124,6 +124,13 @@ def main():
 
     RESULTS.mkdir(exist_ok=True)
     out = RESULTS / f"sensitivity_{a.name}.json"
+    if out.exists():
+        # merge with an existing curve so the grid can be refined incrementally
+        old = json.loads(out.read_text())
+        have = {r["sigma"] for r in rows}
+        rows = rows + [r for r in old.get("rows", []) if r["sigma"] not in have]
+        rows.sort(key=lambda r: r["sigma"])
+        print(f"merged with existing curve -> {len(rows)} points", flush=True)
     json.dump(dict(model=a.model, name=a.name, tokens=int(ids.shape[1]),
                    load_4bit=a.load_4bit, rows=rows), open(out, "w"), indent=1)
     print("wrote", out, flush=True)
