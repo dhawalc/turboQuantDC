@@ -1131,56 +1131,58 @@ evidence about the model either way.
 
 ### 6.15 The main result: reconstruction metrics do not predict damage
 
-*(added 2026-08-18)*
+*(added 2026-08-18; numbers reflect the final 176-cell state of the campaign)*
 
-Because §6.14 records the proxy metrics and the true perplexity for every cell, we
-can ask directly whether the metrics this field validates compressors on predict
-anything. Over all 72 cells, correlated against log₁₀(PPL ratio):
+Because §6.14 records the proxy metrics and the true perplexity for every
+cell, we can ask directly whether the metrics this field validates compressors
+on predict anything. Over all 176 cells — the 150-cell atlas, the 18 one-bit
+stress cells of §6.19, and the 8 seed/corpus robustness cells of §6.13 —
+correlated against log₁₀(PPL ratio):
 
-| Proxy metric | Spearman | Pearson | Separates broken from working? |
-|---|---:|---:|---|
-| **per-vector cosine similarity** | **−0.462** | **−0.139** | **No — the ranges overlap** |
-| mean attention-logit correlation | −0.698 | −0.613 | No — the ranges overlap |
-| **worst-layer logit correlation** | **−0.750** | **−0.949** | **Yes, with a clean gap** |
-| logit spread ratio | 0.756 | 0.847 | No — the ranges overlap |
+| Proxy metric | Spearman | Pearson | best-threshold errors | held-out errors* |
+|---|---:|---:|---:|---:|
+| **per-vector cosine similarity** | −0.551 | **−0.003** | 25/176 | **43/146** |
+| mean attention-logit correlation | −0.757 | −0.210 | 23/176 | 35/146 |
+| **worst-layer logit correlation** | **−0.793** | **−0.836** | **9/176** | **11/146** |
+| per-layer product | −0.808 | −0.422 | 23/176 | 25/146 |
+| logit spread ratio | 0.789 | 0.207 | 25/176 | 125/146 |
 
-Figure 2 ([`figures/fig2_metric_scatter.png`](figures/fig2_metric_scatter.png))
-plots every cell against both metrics. Taking "broken" to mean a perplexity ratio above 2×, a single threshold of 0.8266
-on worst-layer logit correlation **misclassifies 0 of 72 cells**. The separating
-gap is clean: the worst broken configuration sits at 0.8056 and the best surviving
-one at 0.8475. Per-vector cosine similarity has no such threshold — broken cells
-average 0.9913 and working cells 0.9942, and the ranges overlap.
+\*threshold fitted on the Qwen2.5 cells only, evaluated on 146 cells from 31
+unseen model configurations, 13 of them truly broken. Figure 2
+([`figures/fig2_metric_scatter.png`](figures/fig2_metric_scatter.png)) plots
+every cell against both headline metrics.
 
-The individual cells are more damning than the aggregate:
+Per-vector cosine similarity — the criterion this project itself started with —
+is *uncorrelated* with true damage (Pearson −0.003). The individual cells are
+more damning than the aggregate: of the 24 broken cells, **6 pass a 0.995
+cosine criterion and 12 score ≥0.9947**, including configurations at ×376,
+×1,416 and ×2,929 the baseline perplexity, while working configurations are
+rejected at 0.9904. The criterion is wrong in both directions at once.
 
-| Model | Config | vector cosine | Verdict at the 0.995 criterion | True PPL |
-|---|---|---:|---|---:|
-| Qwen2.5-1.5B | 4-bit, no centering | **0.9986** | **PASS** | **×376** |
-| Qwen2.5-7B | 4-bit, no centering | **0.9986** | **PASS** | **×125** |
-| Qwen2.5-1.5B | 2-bit, **centered** | 0.9904 | **FAIL** | **×1.07** |
+Worst-layer logit correlation is not a universal damage meter either — §6.19
+maps its boundary — but its errors are structured, not random:
 
-The criterion is wrong in both directions at once. It certifies a configuration
-that destroys the model, and rejects one that costs 7% perplexity. 25% of all
-broken configurations in the atlas pass the 0.995 cosine test.
+- **It catches every catastrophic cell.** All 17 cells with damage above ×5
+  score below 0.81, across two Qwen generations, two seeds, two corpora and
+  Pythia; no cell at or above 0.81 is catastrophic. The ranking is
+  cutoff-robust: it beats cosine at every damage cutoff from ×1.5 to ×10
+  (9 vs 29, 9 vs 25, 6 vs 18 errors).
+- **Its false passes are the moderate uniform-starvation cells** of §6.19
+  (1-bit Llama/SmolLM2), which no reconstruction-side statistic can see.
+- **Its false alarms are mechanistically real.** The five healthy cells below
+  0.81 — OPT-2.7b and Pythia-2.8b at 2–4 bits, Granite at 1 bit — are models
+  whose score structure genuinely is damaged (OPT's keys are mean-dominated,
+  ρ = 2.15, §6.21) but which happen to tolerate it. The "false alarm" is a
+  true positive about the quantizer and a false positive about the model —
+  the distinction §6.22 formalizes.
 
-**Held-out validation.** Fitting the threshold on Qwen2.5 models only — the family
-the failure was discovered on — and testing on the other eleven models:
-
-| Metric | Threshold fitted on Qwen2.5 | Misclassified on 62 held-out cells |
-|---|---:|---:|
-| worst-layer logit correlation | 0.7821 | **1 / 62** |
-| per-vector cosine similarity | 0.9945 | **23 / 62** |
-
-The proxy transfers to unseen architectures; the reconstruction metric does not.
-The single held-out error is Qwen3-1.7B at 2 bits (true ×21.1, logit correlation
-0.8056), which the full-data threshold of 0.8266 catches — i.e. the failure is a
-threshold that was fitted slightly too low, not a breakdown of the ranking.
-
-**Why this is the durable result.** Computing it requires one forward pass over a
-short calibration text and a few hundred random probe directions — no labels, no
-perplexity run, no downstream evaluation. It is strictly cheaper than the
-perplexity measurement it predicts, and it is the difference between shipping and
-not shipping a broken cache.
+**Why this is the durable result.** Computing the statistic requires one
+forward pass over a short calibration text and a few hundred random probe
+directions — no labels, no perplexity run. It is strictly cheaper than the
+measurement it predicts, and for the catastrophic failure mode this paper
+documents, it is the difference between shipping and not shipping a broken
+cache. [`experiments/kvcheck.py`](experiments/kvcheck.py) packages it, with
+the scope caveats of §6.19 printed in the output.
 
 ### 6.16 How much is centering worth? About four bits
 
@@ -1499,6 +1501,41 @@ why it is uniformly sufficient. But the boundary-layer half of the problem
 could equally be fixed at model-conversion time by folding the k_proj bias
 into the cache layout (it is a per-layer constant), at zero runtime cost —
 worth knowing for engines where a running mean is inconvenient.
+
+**The bias source, traced through the lineage in checkpoint bytes.** Since
+`b_k` is 512 floats per layer, it can be read from the published safetensors
+by HTTP range request without downloading any model. Per-layer ‖b_k‖ across
+the lineage:
+
+| Model | L0 | L_last | median over all layers | worst uncentered PPL |
+|---|---:|---:|---:|---:|
+| Qwen1.5-1.8B | 54.4 | 20.0 | 14.8 | ×1.03 |
+| Qwen2-1.5B | **1,111.7** | 15.7 | 12.7 | ×1,085 |
+| Qwen2-7B | **580.1** | **891.0** | 22.4 | ×1,048 |
+| Qwen2.5-1.5B | **1,102.7** | 14.9 | 11.5 | ×1,348 |
+| Qwen2.5-7B | **604.7** | **920.5** | 22.0 | ×1,416 |
+
+Source: [`results/kproj_bias_norms_lineage.json`](experiments/results/kproj_bias_norms_lineage.json)
+
+Three observations close the loop:
+
+1. **The Qwen2 recipe grew a ~20× boundary-layer key bias** (L0: 54 → 1,112)
+   while the median layer's bias is unchanged across the entire lineage
+   (~12–22). The pathology's birth (§6.20) is visible in the checkpoint bytes.
+2. **Qwen2.5 inherited it nearly unchanged** (1,111.7 → 1,102.7 at 1.5B) —
+   consistent with Qwen2.5 continuing the Qwen2 recipe, and explaining why
+   both generations fail identically.
+3. **The bias topology predicts the damage topology.** The 1.5B models have a
+   monster bias only at L0; their damage profile dips only at L0 (0.34–0.37,
+   next-worst layer ≥0.76). The 7B models have monsters at L0 *and* L27;
+   their two worst layers are exactly L0 (0.54) and L27 (0.80), in both
+   generations. A prediction made from weight bytes alone, confirmed in the
+   activation measurements.
+
+The likely function of these boundary biases is an attention-sink-like
+mechanism (cf. massive-activations literature): a constant component that
+every query can attend to. Softmax discards it (§2.3), which is precisely why
+it is safe to remove for quantization and catastrophic to spend bits on.
 
 ---
 
