@@ -471,11 +471,16 @@ The hypothesis is worth stating because it is falsifiable. It predicts:
   without centering, while the attention-logit correlation is 0.5488 vs 0.9934.
 
 As of 2026-08-18 the mechanism is no longer purely inferential: P3 and P6 are
-measured directly (§6.7, §6.9). What remains open is P4, and the *generality* of
-the mechanism — `ρ_h` has been measured on exactly one model, and only on a model
-that fails (§9, Limitation 12). A natural sharper hypothesis, that Qwen2.5's
-`k_proj` bias is the source of the shared component, was tested and **refuted**
-(§6.8).
+measured directly (§6.7, §6.9). The *generality* concern — `ρ_h` originally
+measured on exactly one model, and only on a model that fails — is resolved by
+the end of the campaign: ρ is now measured on seven models spanning both sides
+of the failure boundary (§6.12, §6.20), and it separates them cleanly
+(mean ρ ≈ 1.0 on the immune Qwen1.5 against 2.2–2.8 on the catastrophic
+Qwen2/2.5, with shared *energy* roughly constant at ~50% across all of them).
+A natural sharper hypothesis, that Qwen2.5's `k_proj` bias is the source of
+the shared component, was tested and **refuted** (§6.8), and re-refuted from
+the other direction by the lineage (Qwen1.5 carries the same bias and is
+immune, §6.20).
 
 ---
 
@@ -1400,6 +1405,30 @@ Four conclusions:
 Together with §6.14, every catastrophic natural failure observed in this
 project's data is now precisely delimited: **Qwen2 and Qwen2.5 at any tested
 bit-width, Qwen3 at 2 bits, and nothing else.**
+
+**The mechanism's quantity tracks the discontinuity exactly.** Measuring ρ_h
+(per-head mean-to-deviation ratio, post-RoPE, 2,048 wikitext tokens) on the
+lineage — a prediction made before the measurement:
+
+| Model | mean ρ | max ρ over heads | shared energy | worst uncentered PPL |
+|---|---:|---:|---:|---:|
+| Qwen1.5-1.8B | **0.995** | 5.9 | 49.0% | ×1.03 |
+| Qwen2-1.5B | **2.841** | 64.3 | 50.7% | ×1,085 |
+| Qwen2-7B | **2.228** | 51.9 | 55.7% | ×1,048 |
+| Qwen2.5-1.5B | **2.723** | 46.6 | 53.6% | ×1,348 |
+
+Source: [`results/rho_*.json`](experiments/results/), by
+[`experiments/rho_lineage.py`](experiments/rho_lineage.py)
+
+Mean ρ triples and the head-level tail explodes (5.9 → 64.3) at exactly the
+generation where perplexity collapse appears. The sharpest observation is in
+the third column: **shared energy is ~50% in all four models, including the
+immune one.** The fraction of key energy carried by the mean — the quantity a
+first look at the phenomenon naturally reaches for — does not distinguish
+broken from healthy. What distinguishes them is whether the mean *dominates
+the per-token deviation* (ρ > 1), i.e. whether normalized keys collapse onto
+one direction. This sharpens §6.10's tail-not-centre conclusion into a clean
+two-regime picture and further confirms the mechanism of §4.2.
 
 ---
 
