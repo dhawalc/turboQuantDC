@@ -1,3 +1,140 @@
+# HANDOFF
+
+## Current snapshot — 2026-08-18, end of the damage-law sprint
+
+**Branch:** `phase-d-vllm-attention-impl` (all paper/experiment work).
+**Master:** carries only the reproduction registry (`REPRODUCTIONS.md`,
+`.github/ISSUE_TEMPLATE/independent-reproduction.yml`) — GitHub serves issue
+templates from the default branch only, which is why they live there.
+
+### The headline result (§6.22): a damage law
+
+Quantization damage is a **model-specific function of one cheap scalar**:
+
+    damage  =  f_model( 1 − worst-layer attention-logit correlation )
+
+`f_model` is calibrated by injecting mean-free isotropic Gaussian noise into
+cached keys at several magnitudes — **no quantizer involved** — and recording
+perplexity. Evaluating a model's own curve at a quantizer configuration's
+measured score-space noise predicts that configuration's damage:
+
+| | |
+|---|---|
+| R² on log₁₀ damage | **0.969** (96 configs, 13 models) |
+| median / 90th-pct / worst error | ×1.01 / ×1.22 / ×3.5 |
+| damage range covered | ×0.99 to ×1,348 |
+| dangerous misses at a ×5 gate | **0 / 96** |
+| held-out (5/6/8-bit, in no fit) | median ×1.00, worst ×1.5 |
+
+It **subsumes the two negative results** that preceded it: no universal proxy
+threshold can exist (the proxy→damage map is a model property), and the
+"proxy-invisible" 1-bit failures become predictable because the curves differ
+where the proxies do not.
+
+**Honest boundaries, all measured:**
+- Cannot resolve a 2% tax from an 8% one — the budget-table inversion meets a
+  5% budget in only 4/13 cases (`budget_table.py`). Catastrophe gating: yes.
+  Fine-grained budgeting: no.
+- 1-bit centered cells are systematically under-predicted (×1.55 vs ×4.00 on
+  Llama-3.2-1B) — 1-bit indices are the least Gaussian error in the study.
+- Curve resolution is the dominant error source. The original 5-point σ grid
+  over-predicted held-out 6-bit by ×4; six extra small-σ points (15 s of GPU)
+  cut the worst held-out error from 0.604 to 0.170 log₁₀.
+- The curve is **not** predictable from ρ (Spearman 0.18 over 11 models), so
+  both factors must be measured. An n=5 preliminary said 0.80 — it did not
+  survive the full cohort.
+
+**Prior art is credited and it matters.** An adversarial search found the
+method skeleton is published for *weights*: HIGGS / Linearity Theorem
+(arXiv:2411.17525, NAACL 2025) does noise-insertion calibration of
+error→perplexity coefficients with J=15 noise levels. RateQuant
+(arXiv:2605.06675) publishes the distortion×sensitivity factorization for KV
+caches with gradient-based sensitivity. HeadQ (arXiv:2605.03562, withdrawn)
+publishes the score-space-is-the-right-coordinate half. **What is ours:** the
+score-space coordinate, the KV-cache setting, and validity in the catastrophic
+regime where HIGGS's quadratic model is explicitly stated to diverge (they
+restrict to >3 bits; our subject is 2–3 bits at ×100–×1,400).
+
+### The other results from this sprint
+
+- **§6.20 Lineage — the pathology was born in Qwen2.** Qwen1.5-1.8B immune
+  (×1.03) *while carrying the same QKV bias*; Qwen2-1.5B ×1,085; Qwen2-7B
+  ×1,048; Qwen2.5 inherits it; Qwen3 intermediate; Qwen3.5 immune. ρ triples
+  at the discontinuity (0.995 → 2.2–2.8) while shared key *energy* stays ~50%
+  on both sides — the mean-to-deviation ratio is what matters, not energy.
+- **§6.21 Origin of the mean, measured.** `μ = W_k E[z] + b_k` decomposed with
+  forward hooks. Boundary layers (0–3, 27) are **pure k_proj bias** (‖b_k‖ 605
+  and 921); middle layers are **massive activations** (cos 0.91–0.96, 16 of
+  3,584 channels carry 58–82% of E[z]). This resolves §6.8's apparent tension:
+  the bias is the tail, the residual-stream mean is the bulk.
+- **Checkpoint-bytes smoking gun.** Range-fetched ‖b_k‖ across the lineage:
+  layer-0 bias goes 54 → 1,112 at the Qwen1.5→Qwen2 transition while median
+  layers are unchanged. Bias *topology* predicts damage *topology*: the 1.5B
+  models have one monster at L0 and dip only at L0; the 7B models have L0+L27
+  and dip at exactly L0 and L27, in both generations.
+- **§6.19 Scope boundary.** 1-bit stress on nine robust models: Llama-3.2 and
+  SmolLM2 break (×2–×4.9) while every proxy reads near-identical across all
+  nine. This is what motivated §6.22.
+- **§2.6 Independent corroboration** (unconnected parties): llama.cpp #21385 —
+  jagmarques measured Qwen2.5-7B 6.12→~3,300 in a *different* codebase, found
+  Mistral-7B immune, and mitigated by protecting first+last layers, which are
+  exactly the two layers our per-layer profile identifies. AXELRAM
+  (arXiv:2604.02638) independently reports Qwen2.5-3B-specific collapse.
+
+### Verification status
+
+A 22-agent adversarial workflow attacked the damage law (circularity, simpler
+baselines, transfer validity) and fact-checked every section against the raw
+JSONs: **0 confirmed defects, 10/10 serious findings refuted**, 39 minor
+precision notes — all substantive ones applied. Notable refinement it forced:
+per-model calibration, not the choice of scalar, is what supplies damaged-cell
+accuracy (cosine reaches R² 0.947 vs logit-r's 0.952 on cells above ×1.5); the
+score-space scalar is what makes the law hold *globally* (0.971 vs −0.004) and
+gives 5× fewer gate false alarms. That distinction is now stated in §6.22.
+
+### Artifacts
+
+| File | What |
+|---|---|
+| `paper/qwen_kv_quantization_failure.md` | the manuscript (retitled; §§6.13–6.22 are this campaign) |
+| `paper/experiments/sensitivity_probe.py` | noise-response curves (supports incremental σ refinement) |
+| `paper/experiments/factorization.py` | the damage-law test + fig3 |
+| `paper/experiments/kvcheck.py` | pre-deployment check, `--kl` for a label-free end-to-end read |
+| `paper/experiments/budget_table.py` | curve inversion → deployment recommendation, self-verifying |
+| `paper/experiments/curve_vs_rho.py` | the negative result on curve predictability |
+| `paper/experiments/{rho_lineage,measure_mu_origin,gen_atlas_table,make_figures}.py` | mechanism + table/figure generation |
+| `paper/figures/fig{1,2,3}_*.png` | damage geometries, metric scatter, factorization |
+| `paper/outreach_draft_llamacpp_21385.md` | **DRAFT, not posted** — needs approval |
+
+### Open items
+
+1. **Outreach is drafted but unsent.** `paper/outreach_draft_llamacpp_21385.md`
+   targets llama.cpp #21385 (jagmarques + SCJedi; neither publishes an email).
+   Requires explicit approval before posting.
+2. **Qwen2.5-32B never ran.** 65 GB bf16 vs a 24 GB GPU with a resident ollama
+   server; the retry was aborted mid-download during this sprint. Documented
+   in §6.14, not hidden.
+3. **n = 1 almost everywhere.** Outside the single seed pair of §6.13, every
+   cell is one run. This is the last genuinely open ablation axis.
+4. **1-bit under-prediction** is unexplained; a heavier-tailed or
+   quantization-shaped noise family is the obvious next probe.
+5. **Branch is unmerged** (20+ commits). Master intentionally carries only the
+   registry.
+
+### Operational gotchas learned the hard way
+
+- `pkill -f <script>` matches this session's own shell → exit 144. Use PIDs.
+- Editing a bash script while a launched copy waits in an `until` loop is
+  unsafe; kill and relaunch instead.
+- Background jobs must be `setsid nohup ... & disown` or they die with the
+  2-minute tool timeout.
+- OPT's HF repo ships pytorch + TF + Flax weights: a "2.7B" model downloads
+  20 GB.
+- The auto-mode safety classifier rate-limits under load; read-only tools keep
+  working, so keep a non-Bash workstream ready.
+
+---
+
 # HANDOFF — current snapshot 2026-08-18 (end of measurement campaign)
 
 **Branch:** `phase-d-vllm-attention-impl` (16+ commits ahead of `master`, unmerged by choice)
