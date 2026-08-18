@@ -47,14 +47,17 @@ scanned retains, is the source of the shared component — was tested and refute
 zeroing it removes the extreme tail of mean-dominated heads but leaves the bulk
 shared component unchanged.
 
-Repeating the measurement on Qwen3-8B, which is bias-free and applies QK-Norm,
-shows the bulk shared component is **not** an artefact of the older architecture:
-51.0% of key energy against Qwen2.5-7B's 52.7%, mean cosine 0.702 against 0.715.
-What the newer architecture removes is the tail — worst-head ratio falls from 59.1
-to 7.0 — and quantizer damage tracks that tail. Centering therefore remains
-necessary on current models rather than being a legacy fix, and Qwen3.8-27B, whose
-published weights we verified share the same bias-free QK-Norm structure, is
-predicted (untested) to behave likewise.
+Measuring three generations under one protocol shows the failure is being
+engineered out over time. Qwen3-8B, bias-free with QK-Norm, still carries the same
+bulk shared component as Qwen2.5-7B (51.0% of key energy against 52.7%) with a
+much smaller tail (worst-head ratio 7.0 against 59.1). Qwen3.5-4B — which declares
+the same model class, KV-head count and head dimension as the newly released
+Qwen3.8-27B — is qualitatively different: 29.5% shared energy, **no head anywhere
+in the model whose mean exceeds its deviation**, no first-layer outlier, and
+uncentered logit correlation of 0.9905 against Qwen2.5-7B's 0.9619. Centering
+still helps there but is no longer the difference between working and failing. The
+severe failure documented in this paper is therefore specific to the older
+generation, while the diagnostic method and the metric warning generalise.
 
 Critically, the failure is **not uniform across the Qwen family**. In a separate
 sweep across three model sizes, Qwen2.5-3B (2 KV heads) and Qwen2.5-7B (4 KV heads)
@@ -845,11 +848,71 @@ read via [`experiments/remote_safetensors.py`](experiments/remote_safetensors.py
 
 Qwen3.8-27B therefore shares the architectural properties of the Qwen3-8B proxy
 measured in §6.10 — no key bias, QK-Norm present — and adds no new
-shared-direction structure through its norm gains. Since §6.10 shows those
-properties do **not** eliminate the bulk shared component, the prediction is that
-Qwen3.8-27B also carries one and also requires centering. **That prediction is
-untested**, and §6.10's caveats about KV-head count and head dimension apply with
-more force here, since Qwen3.8-27B differs from the proxy on both.
+shared-direction structure through its norm gains. On that basis we predicted that
+it also carries a large bulk shared component and also requires centering.
+
+**§6.12 tested that prediction against a closer proxy and it is wrong.**
+
+### 6.12 The generational trend: Qwen3.5/3.8 largely eliminates the pathology
+
+*(added 2026-08-18; supersedes the prediction at the end of §6.11)*
+
+Qwen3-8B was a weak proxy for Qwen3.8-27B: dense, 8 KV heads, head_dim 128. A far
+closer one exists. **Qwen3.5-4B declares the same `model_type` (`qwen3_5`) and the
+same class (`Qwen3_5ForConditionalGeneration`) as Qwen3.8-27B, with the same 4 KV
+heads, the same head_dim of 256, and the same 3-linear-attention + 1-full-attention
+hybrid pattern.** It differs only in depth (32 vs 64 layers) and query-head count
+(16 vs 24). It is also small enough to run here, which Qwen3.8-27B is not.
+
+Its 4 KV heads additionally match Qwen2.5-7B exactly, which controls the KV-head
+correlation of §6.3 that no earlier comparison could.
+
+Same corpus, tokens, probe set, seed and quantizer configuration throughout:
+
+| Model | Key bias | QK-Norm | KV heads | head_dim | **Shared energy** | **cos to mean** | **ρ max** | **heads ρ>1** |
+|---|:--:|:--:|---:|---:|---:|---:|---:|---:|
+| Qwen2.5-7B | yes | no | 4 | 128 | **52.7%** | 0.7150 | **59.116** | 43.8% |
+| Qwen3-8B | no | yes | 8 | 128 | **51.0%** | 0.7019 | 7.011 | 49.0% |
+| **Qwen3.5-4B** | no | yes | 4 | 256 | **29.5%** | **0.5414** | **0.782** | **0.0%** |
+
+And the resulting quantizer damage at 3 bits:
+
+| Model | Uncentered logit corr. | Centered | Uncentered spread | Worst layer (uncentered) |
+|---|---:|---:|---:|---|
+| Qwen2.5-7B | 0.9619 | 0.9931 | 1.0595 | **L0: 0.5488** |
+| Qwen3-8B | 0.9836 | 0.9932 | 1.0082 | L0: 0.8669 |
+| **Qwen3.5-4B** | **0.9905** | 0.9929 | 1.0038 | L23: 0.9899 |
+
+Source: [`results/quantizer_loop_qwen35_4b.json`](experiments/results/quantizer_loop_qwen35_4b.json)
+
+The trend is monotonic across three generations and the newest is qualitatively
+different, not merely better:
+
+1. **The shared component is roughly halved** — 29.5% of key energy against 51–53%,
+   and mean cosine 0.541 against 0.70–0.715.
+2. **No mean-dominated heads exist at all.** Not one head in Qwen3.5-4B has
+   ρ > 1; the maximum over every head and layer is 0.782. In Qwen2.5-7B the
+   maximum is 59.1 and 43.8% of heads exceed 1.
+3. **The layer-0 outlier disappears.** Qwen3.5-4B's uncentered logit correlation is
+   flat across all eight attention layers (0.9899–0.9911). The catastrophic
+   first-layer behaviour that characterises Qwen2.5-7B (0.5488) and is still
+   visible in Qwen3-8B (0.8669) is simply absent.
+4. **Centering still helps, but it is no longer decisive** — 0.9905 → 0.9929. On
+   Qwen2.5-7B layer 0 the same intervention moves 0.5488 → 0.9934.
+
+**This corrects §6.10's headline.** The claim that "the bulk shared component
+survives the architecture change" holds for Qwen3 and is false for Qwen3.5/3.8.
+The accurate statement is a generational one: Qwen2.5 is severe, Qwen3 is
+intermediate, and the Qwen3.5/3.8 family has largely engineered the problem away.
+
+**Confounds, and they are serious.** Four things change at once between Qwen3-8B
+and Qwen3.5-4B — head dimension (128 → 256), stack type (dense → hybrid linear
+attention), parameter count (8B → 4B), and training recipe. With one model per
+generation we cannot attribute the improvement to any of them. The doubled head
+dimension is the most mechanically plausible candidate, since it gives the
+token-specific component twice the space to occupy relative to a shared direction,
+but that is a conjecture. We also measured Qwen3.5-4B, **not** Qwen3.8-27B, and no
+end-to-end perplexity was run on any of the three newer models.
 
 ---
 
@@ -950,11 +1013,14 @@ architectures that loader supports (§9, Limitation 11).
   learned bias to the key projection; every newer architecture scanned (Qwen3,
   Qwen3.5/3.6, Gemma 3, Gemma 4) replaced it with QK-Norm (§6.6), and the same
   holds for Qwen3.8-27B read directly from its published weights (§6.11).
-- **That architectural change does not remove the shared component.** A bias-free
-  QK-Norm model carries essentially the same bulk shared component (51.0% vs
-  52.7%) and still loses logit fidelity uncentered at layer 0 (0.8669 → 0.9909
-  with centering), while its vector cosine stays at 0.9971 in both arms (§6.10).
-  What the change removes is the extreme tail (worst-head ρ 59.1 → 7.0).
+- **Removing the bias alone does not remove the shared component**, but the newest
+  architecture largely does. Qwen3-8B keeps the bulk (51.0% vs 52.7%) with a
+  smaller tail (ρ max 7.0 vs 59.1); Qwen3.5-4B — same model class, KV-head count
+  and head dimension as Qwen3.8-27B — halves the bulk (29.5%), has **no** head
+  with ρ > 1, and shows no first-layer outlier (§6.10, §6.12).
+- The metric dissociation appears in **every** model measured, the newest included:
+  Qwen3.5-4B still scores 0.994 vector cosine uncentered while centering
+  measurably improves the logits it produces.
 
 ### 8.2 What remains a hypothesis
 
@@ -998,15 +1064,28 @@ with 8+ KV heads — which describes much of the Llama-centric low-bit KV litera
 — would not have surfaced this failure at all. Architecture coverage in KV-cache
 quantization benchmarks appears to be systematically too narrow.
 
-**On whether this is a historical finding.** An earlier reading of §6.6 suggested
-it might be: the vulnerable family is Qwen2.5, and every newer architecture dropped
-the key bias. §6.10 tested that and it is wrong. The bulk shared component survives
-the architecture change intact, so the correction is still load-bearing on current
-models — and Qwen3.8-27B, released this month, has the same structure (§6.11). The
-refined claim is narrower and more useful than either extreme: *the shared
-component is ubiquitous and always worth removing; the catastrophic tail is what
-varies across architectures, and Qwen2.5's key bias is one mechanism that produces
-it.*
+**On whether this is a historical finding.** This took two measurements and two
+corrections to answer, and both intermediate answers are recorded above rather than
+quietly replaced. §6.6 suggested the finding was historical (only Qwen2.5 has the
+key bias). §6.10 refuted that (Qwen3-8B keeps the bulk shared component). §6.12
+then showed §6.10 does not extend to the newest family: on the Qwen3.5/3.8
+architecture the shared component is roughly halved, no head is mean-dominated,
+and the first-layer collapse is gone.
+
+The defensible synthesis is generational rather than binary:
+
+| Generation | Shared component | Tail | Quantizer damage |
+|---|---|---|---|
+| Qwen2.5 | large (53%) | extreme (ρ to 59) | catastrophic |
+| Qwen3 | large (51%) | moderate (ρ to 7) | intermediate |
+| Qwen3.5 / 3.8 | reduced (29%) | none (ρ < 1 everywhere) | mild |
+
+So the *severe* failure is largely a property of models one to two generations old
+— which still describes a large amount of deployed inference, since Qwen2.5 and
+Qwen3 remain widely used. What does not age is the methodological result: a
+reconstruction metric read 0.995 while the attention logits it produced were
+barely correlated with the truth (§6.9), and that failure of measurement would
+have hidden this bug on any architecture.
 
 ### 8.4 What cannot yet be claimed
 
@@ -1102,6 +1181,12 @@ relative logit structure that generation depends on.
     loader materializes a full dequantized state dict in RAM, capping the machine
     near 8B parameters, and ollama 0.20.0 rejects the Qwen3.8 manifest as
     requiring a newer release.
+16b. **The generational comparison is one model per generation, with four
+    simultaneous confounds.** Between Qwen3-8B and Qwen3.5-4B the head dimension
+    (128 → 256), stack type (dense → hybrid linear attention), parameter count
+    (8B → 4B) and training recipe all change together. §6.12's improvement cannot
+    be attributed to any single one. Nor was any end-to-end perplexity measured on
+    Qwen3-8B or Qwen3.5-4B, so "mild per-layer damage" is not "does not fail".
 16. **Qwen3.8-27B is verified structurally but never executed.** §6.11's claims come
     from its published tensor manifest and a few kilobytes of range-fetched weight
     data. No activation, quantizer or perplexity measurement was made on it, and

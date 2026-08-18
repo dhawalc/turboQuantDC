@@ -34,7 +34,7 @@ from measure_key_mean_gguf import find_models, build_corpus, extract_layer_keys
 
 TAG = os.environ.get("TQ_MODEL", "qwen2.5:7b")
 TOKENS = int(os.environ.get("TQ_TOKENS", "1024"))
-KEYS_NPZ = os.path.join(SCRATCH, f"keys_{TAG.replace(':','_')}.npz")
+KEYS_NPZ = os.path.join(os.environ.get("TQ_SCRATCH", SCRATCH), f"keys_{os.path.basename(TAG.rstrip(chr(47))).replace(':','_')}.npz")
 N_PROBES = 256
 SEED = 42
 
@@ -43,27 +43,49 @@ def extract_keys():
     if os.path.exists(KEYS_NPZ):
         print("reusing cached keys:", KEYS_NPZ, flush=True)
         return
-    from transformers import AutoModelForCausalLM, AutoTokenizer
-    blob = find_models()[TAG]
-    d = os.path.join(SCRATCH, "gguf", TAG.replace(":", "_"))
-    os.makedirs(d, exist_ok=True)
-    link = os.path.join(d, "model.gguf")
-    if not os.path.exists(link):
-        os.symlink(blob, link)
-    print("loading model...", flush=True)
+    from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
+    import transformers as _tf
+    kw = {}
+    if os.path.isdir(TAG):
+        # local HuggingFace checkpoint directory (safetensors)
+        d = TAG
+    else:
+        # ollama GGUF blob
+        blob = find_models()[TAG]
+        d = os.path.join(SCRATCH, "gguf", TAG.replace(":", "_"))
+        os.makedirs(d, exist_ok=True)
+        link = os.path.join(d, "model.gguf")
+        if not os.path.exists(link):
+            os.symlink(blob, link)
+        kw["gguf_file"] = "model.gguf"
+    dev_map = os.environ.get("TQ_DEVICE", "cpu")
+    print(f"loading model from {d} onto {dev_map}...", flush=True)
     t0 = time.time()
-    tok = AutoTokenizer.from_pretrained(d, gguf_file="model.gguf")
-    model = AutoModelForCausalLM.from_pretrained(
-        d, gguf_file="model.gguf", dtype=torch.bfloat16, device_map="cpu")
+    tok = AutoTokenizer.from_pretrained(d, **kw)
+    model = None
+    for cls_name in ("AutoModelForCausalLM", "AutoModelForImageTextToText", "AutoModel"):
+        cls = getattr(_tf, cls_name, None)
+        if cls is None:
+            continue
+        try:
+            model = cls.from_pretrained(d, dtype=torch.bfloat16,
+                                        device_map=dev_map, **kw)
+            print(f"  loaded via {cls_name}", flush=True)
+            break
+        except Exception as e:
+            print(f"  {cls_name} failed: {type(e).__name__}: {str(e)[:120]}", flush=True)
+    if model is None:
+        raise RuntimeError("no auto class could load this checkpoint")
     model.eval()
     print(f"loaded {time.time()-t0:.0f}s", flush=True)
     ids = tok(build_corpus(), return_tensors="pt",
               truncation=True, max_length=TOKENS)["input_ids"]
+    ids = ids.to(next(model.parameters()).device)
     t0 = time.time()
     with torch.no_grad():
         out = model(ids, use_cache=True)
     print(f"forward {time.time()-t0:.0f}s on {ids.shape[1]} tokens", flush=True)
-    ks = {f"L{i}": k.float().numpy().astype(np.float32)
+    ks = {f"L{i}": k.detach().float().cpu().numpy().astype(np.float32)
           for i, k in enumerate(extract_layer_keys(out.past_key_values))
           if k is not None and k.numel()}
     np.savez_compressed(KEYS_NPZ, **ks)
@@ -152,7 +174,8 @@ def main():
            for k in rows[0] if k != "layer"}
     out = {"model": TAG, "tokens": TOKENS, "key_bits": 3, "n_probes": N_PROBES,
            "device": dev, "aggregate": agg, "rho_stats": rho_stats, "per_layer": rows}
-    p = os.path.join(SCRATCH, "results", f"quantizer_loop_{TAG.replace(':','_')}.json")
+    p = os.path.join(SCRATCH, "results",
+                     f"quantizer_loop_{os.path.basename(TAG.rstrip(chr(47))).replace(':','_')}.json")
     os.makedirs(os.path.dirname(p), exist_ok=True)
     json.dump(out, open(p, "w"), indent=1)
     print("\n=== AGGREGATE over all layers/heads ===")

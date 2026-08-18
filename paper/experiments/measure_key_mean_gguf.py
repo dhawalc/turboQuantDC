@@ -59,10 +59,21 @@ def build_corpus() -> str:
 
 
 def extract_layer_keys(pkv):
+    """Per-layer key tensors, with None for layers that hold no KV cache.
+
+    Hybrid stacks (Qwen3.5/3.6/3.8) interleave linear-attention layers that carry
+    no keys at all, so a layer yielding None is expected, not an error. Callers
+    skip them; the list index stays aligned with the true layer index.
+    """
     layers = getattr(pkv, "layers", None)
     if layers is not None:
-        ks = [getattr(l, "keys", None) for l in layers]
-        if all(k is not None for k in ks):
+        ks = []
+        for l in layers:
+            try:
+                ks.append(getattr(l, "keys", None))
+            except AttributeError:
+                ks.append(None)
+        if any(k is not None for k in ks):
             return ks
     kc = getattr(pkv, "key_cache", None)
     if kc:
