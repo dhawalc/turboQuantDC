@@ -1726,16 +1726,44 @@ it was linear interpolation from the origin. Adding six small-σ points
 0.604 to 0.170 log₁₀. Curves must be sampled where the configurations of
 interest actually live; a fixed σ grid is not adequate for steep models.
 
-**Honest residuals and the boundary of the law.** After refinement the worst
-residual is Qwen2.5-1.5B at 4 bits uncentered; three of the next four are
-1-bit centered cells, and those are the systematic pattern — **1-bit centered
-cells are under-predicted on every model where they exist** (Llama-3.2-1B ×1.55 against
-×4.00; Llama-3.2-3B ×1.20 against ×2.54; SmolLM2 ×1.16 against ×2.02), and
-Qwen2.5-1.5B at 4 bits is under-predicted (×107 against ×376). One-bit indices
-are the most structured, least Gaussian error in this study, so this is where
-the Gaussian-equivalence assumption should break — and it does. A
-heavier-tailed or explicitly quantization-shaped noise family is the obvious
-next test.
+**Honest residuals, and a hypothesis of ours that failed.** After refinement
+the worst residual is Qwen2.5-1.5B at 4 bits uncentered; three of the next four
+are 1-bit **centered** cells, and those are the systematic pattern —
+under-predicted on every model where they exist (Llama-3.2-1B ×1.55 against
+×4.00; Llama-3.2-3B ×1.20 against ×2.54; SmolLM2 ×1.16 against ×2.02).
+
+Our first explanation was that one-bit indices are the most structured, least
+Gaussian error in the study, so this is where a Gaussian-calibrated curve
+should break. **We tested that and it is wrong.** Re-calibrating the same three
+models with noise families matched to the quantizer's actual error — uniform
+(the error distribution of a scalar quantizer within a bin), Rademacher signs,
+and true deterministic rounding to a uniform grid, all normalised to the same
+per-vector RMS error — does not fix the residual:
+
+| Calibration family | median error | 90th pct | median error on 1-bit cells |
+|---|---:|---:|---:|
+| Gaussian | 0.0116 | 0.194 | 0.164 |
+| **real scalar quantization** | 0.0108 | 0.222 | **0.206** |
+| Rademacher signs | 0.0097 | 0.190 | 0.152 |
+| Gaussian, second seed | 0.0118 | 0.207 | 0.182 |
+
+Source: [`experiments/family_test.py`](experiments/family_test.py),
+[`results/family_test.json`](experiments/results/family_test.json)
+
+Real scalar-quantization calibration is *worse* than Gaussian on exactly the
+cells it was meant to fix, and all four families under-predict the same
+centered cells by nearly the same factor. The perturbation's shape is
+therefore not the explanation, which strengthens §6.22's central claim — only
+the scalar amount of score-space noise matters, across four quite different
+noise geometries — while leaving the residual unexplained. What the residual
+does track is **centering at very low bit-width**: uncentered 1-bit cells are
+predicted well by every family, centered ones are not. We do not have an
+account of why, and record it as open.
+
+**Seed variance is small.** Repeating the Gaussian calibration with a different
+random seed changes the median prediction error from 0.0116 to 0.0118 log₁₀
+(90th percentile 0.194 → 0.207). The curves are not seed-sensitive, which is
+the one variance estimate this paper has (§9, Limitation 5).
 
 **What the law is and is not good for.** Accuracy is strongly regime-dependent:
 
