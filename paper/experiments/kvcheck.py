@@ -3,7 +3,7 @@
 
 One forward pass over a short calibration text, with the repository's production
 quantizer patched into the cache, is enough to compute the statistic that the
-116-cell atlas in `paper/qwen_kv_quantization_failure.md` validates as the best
+176-cell study in `paper/qwen_kv_quantization_failure.md` validates as the best
 cheap predictor of real perplexity damage: the WORST-LAYER correlation between
 the attention logits produced by original and reconstructed keys.
 
@@ -13,21 +13,28 @@ Usage:
     python kvcheck.py --model Qwen/Qwen2.5-7B-Instruct --load-4bit
     python kvcheck.py --model meta-llama/Llama-3.2-1B --bits 2 --center
 
-Interpretation (calibrated on 116 (model, bits, centering) cells, 23 models,
-7 families — see §6.15 and §6.19 of the paper):
+Interpretation (calibrated on 176 (model, bits, centering) cells across 26
+models and 13 lineages — see §6.15, §6.19 and §6.22 of the paper):
 
-  worst-layer logit r < 0.83   every catastrophic failure (PPL ratio > 4x) in
-                               the atlas scored below this; expect severe damage
-  0.83 <= r < 0.95             caution: no catastrophic cell scored here, but
+  worst-layer logit r < 0.81   every catastrophic cell (PPL ratio > 5x) in the
+                               study scored below this; expect severe damage
+  0.81 <= r < 0.95             caution: no catastrophic cell scored here, but
                                moderate uniform damage (PPL x2-x5, e.g. 1-bit
                                keys) can hide in this band
-  r >= 0.95                    every atlas cell here had PPL ratio <= 1.4
+  r >= 0.95                    every study cell here had PPL ratio <= 1.4
 
 SCOPE — read this before trusting a PASS: the statistic detects concentrated
-score-space collapse (the Qwen2.5-type mean-dominance pathology) with a clean
+score-space collapse (the Qwen2-type mean-dominance pathology) with a clean
 margin, but §6.19 shows that mild damage spread uniformly across layers can pass
 every cheap proxy we tested, including this one and including per-vector cosine
 similarity. A PASS here is evidence, not proof; a FAIL is close to proof.
+
+For a QUANTITATIVE damage estimate rather than a verdict, calibrate the model's
+noise-response curve once with sensitivity_probe.py and evaluate it at the
+worst-layer reading this tool reports (§6.22). That predicts perplexity damage
+to about x1.2 at the 90th percentile, where this tool only bands it. Below
+2 bits, or when the reading lands in the caution band, prefer --kl or a real
+perplexity measurement.
 """
 from __future__ import annotations
 import argparse, json, sys, time
@@ -51,8 +58,8 @@ FALLBACK = (
     "a device errs but whether its error is known, bounded, and reported. "
 ) * 200
 
-CATASTROPHIC = 0.83   # every atlas cell below this had PPL ratio > 4x
-SAFE = 0.95           # every atlas cell at or above this had PPL ratio <= 1.4x
+CATASTROPHIC = 0.81   # every study cell below this had PPL ratio > 5x
+SAFE = 0.95           # every study cell at or above this had PPL ratio <= 1.4x
 
 
 def main():
@@ -110,13 +117,14 @@ def main():
     r_min = s["logit_r_min"]
     worst = min(s["per_layer_logit_r"], key=s["per_layer_logit_r"].get)
     if r_min < CATASTROPHIC:
-        verdict, note = "FAIL", "expect severe end-to-end damage at this setting"
+        verdict, note = "FAIL", ("expect severe end-to-end damage at this "
+                                 "setting")
     elif r_min < SAFE:
-        verdict, note = "CAUTION", ("no catastrophic atlas cell scored here, but "
+        verdict, note = "CAUTION", ("no catastrophic study cell scored here, but "
                                     "moderate damage can hide in this band")
     else:
-        verdict, note = "PASS", ("consistent with <= x1.4 perplexity in the "
-                                 "atlas; see SCOPE note, a PASS is not proof")
+        verdict, note = "PASS", ("consistent with <= x1.4 perplexity across "
+                                 "the study; see SCOPE, a PASS is not proof")
 
     print(f"\nconfig: {a.bits}-bit keys, centering={'ON' if a.center else 'OFF'}")
     print(f"worst-layer logit correlation: {r_min:.4f} (layer {worst})")

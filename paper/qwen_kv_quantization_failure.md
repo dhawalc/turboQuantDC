@@ -1242,8 +1242,8 @@ Sweeping bit-width on Qwen2.5-1.5B, keys only, uncentered versus centered:
 | 3 | ×580.2 | 0.9948 | 0.3397 | ×1.01 |
 | 4 | ×376.4 | 0.9986 | 0.4949 | ×1.00 |
 | 5 | ×7.67 | 0.9996 | 0.6751 | ×1.00 |
-| 6 | ×1.17 | 0.9999 | 0.8402 | — |
-| 8 | ×1.00 | 1.0000 | 0.9820 | — |
+| 6 | ×1.17 | 0.9999 | 0.8402 | ×1.00 |
+| 8 | ×1.00 | 1.0000 | 0.9820 | ×1.00 |
 
 Source: [`results/bitsweep_qwen2.5-1.5b.json`](experiments/results/bitsweep_qwen2.5-1.5b.json)
 
@@ -1361,7 +1361,7 @@ pipeline always stores), centering on and off:
 | Falcon3-1B | ×1.07 | 0.862 | ×1.06 | 0.928 | 0.964 |
 | OLMo-2-1B | ×1.15 | 0.879 | ×1.14 | 0.932 | 0.955 |
 | Gemma-2-2B | ×1.17 | 0.881 | ×1.11 | 0.931 | 0.960 |
-| Phi-4-mini | ×1.34 | 0.859 | ×1.37 | 0.932 | 0.965 |
+| Phi-4-mini | ×1.34 | 0.859 | ×1.37 | 0.931 | 0.965 |
 | Granite-3.3-2B | ×1.71 | **0.761** | ×1.21 | 0.933 | 0.976 |
 | Llama-3.2-3B | ×1.78 | 0.864 | **×2.54** | 0.932 | 0.968 |
 | SmolLM2-1.7B | **×2.16** | 0.834 | **×2.02** | 0.928 | 0.973 |
@@ -1441,7 +1441,7 @@ correlation, keys only:
 | Qwen2.5 (Sep 2024) | 1.5B | 2 | ×1,348 | ×580 | ×376 | 0.258 | ×1.07 |
 | Qwen2.5 (Sep 2024) | 7B | 4 | — | ×1,416 | ×125 | 0.537 | ×1.03 |
 | Qwen3 (Apr 2025) | 1.7B | 8 | ×21.1 | ×1.95 | ×1.05 | 0.806 | ×1.41 |
-| Qwen3.5 | 0.8B | 2 | ×1.01 | ×1.00 | ×1.00 | 0.887 | ×1.00 |
+| Qwen3.5 | 0.8B | 2 | ×1.01 | ×1.00 | ×1.00 | 0.961 | ×1.00 |
 
 Source: [`results/ppl_qwen1.5-1.8b.json`](experiments/results/ppl_qwen1.5-1.8b.json),
 [`results/ppl_qwen2-1.5b.json`](experiments/results/ppl_qwen2-1.5b.json),
@@ -1469,7 +1469,9 @@ Four conclusions:
    for Qwen3/3.5.
 4. **The detector behaves correctly on all six new catastrophic cells**
    (lr_min 0.221–0.738, far below the 0.81 operating point,
-   concentrated-collapse geometry), and on all immune lineage cells (≥0.887).
+   concentrated-collapse geometry), and on every immune lineage cell
+   (≥0.918 over the 2–4-bit cells tabulated here; ≥0.886 including the 1-bit
+   Qwen3.5-0.8B cell of §6.19).
 
 Together with §6.14, every catastrophic natural failure observed in this
 project's data is now precisely delimited: **Qwen2 and Qwen2.5 at any tested
@@ -1699,10 +1701,11 @@ correlation with true damage from 0.793 to 0.880. §6.19's resolution should
 therefore be read as *the magnitude becomes recoverable once the curve is
 known*, not that the ordering was previously unknowable.
 
-**Held-out validation at bit-widths the analysis never saw.** An April
-bit-width sweep on Qwen2.5-1.5B measured 5-, 6- and 8-bit keys — precisions
-absent from the atlas and never used in any fit here. Predicting those six
-cells from the model's Gaussian-noise curve alone:
+**Held-out validation at bit-widths the analysis never saw.** The bit-width
+sweep of §6.16 additionally measured 5-, 6- and 8-bit keys on Qwen2.5-1.5B.
+Those three precisions appear in no atlas cell and enter no fit here, so they
+serve as held-out tests. Predicting them from the model's Gaussian-noise curve
+alone:
 
 | Configuration | predicted | actual | error (log₁₀) |
 |---|---:|---:|---:|
@@ -1840,24 +1843,30 @@ not sampled from any population.
 
 ## 7. Ablations
 
-Status of the ablation programme. Three of the six requested axes already have
-data; three do not.
+Status of the ablation programme *(refreshed 2026-08-18 after the second
+campaign; five of the six original axes now have data)*.
 
 | # | Ablation | Status | Evidence |
 |---|---|---|---|
 | 1 | Mean removal ON/OFF | **Done** | §6.1, §6.2, §6.4, §6.9 |
 | 2 | Multiple bit widths (3, 4) | **Done** | §3.2, §6.1 |
 | 3 | Multiple Qwen sizes (3B, 7B, 14B) | **Done** | §6.2 |
-| 4 | At least one non-Qwen architecture | **Structural only** | §6.6 covers Gemma 3 / Gemma 4 at the weights level; no activation or PPL measurement (§9, Limitation 11) |
+| 4 | At least one non-Qwen architecture | **Done** | §6.14 — end-to-end perplexity on twelve non-Qwen lineages (Llama 3.2, Gemma 2/3, Phi-4, SmolLM2, OLMo 2, Granite 3.3, Falcon 3, Ministral, OPT, Pythia, Yi 1.5); §6.20, §6.22 add ρ and noise curves for several |
 | 5 | Different context lengths | **Partial** | 4,095 vs 8,191 tokens (§6.1 vs §6.2), confounded with harness changes |
-| 6 | Different evaluation samples / seeds | **Not done** | single seed (42), single run per cell |
+| 5b | Different evaluation corpus | **Done** | §6.13 — wikitext-2 and a Gutenberg replicate, same failure (×1,416 and ×2,929) with near-identical detector readings |
+| 6 | Different evaluation samples / seeds | **Partial** | §6.13 — seed 42 vs 43 on Qwen2.5-7B (×1,416 vs ×699 uncentered; both catastrophic, detector 0.537 vs 0.535). Every other cell is still n = 1 |
 | 7 | **P3: measure the per-head key mean** | **Done** | §6.7 — the mechanism's load-bearing quantity, now measured |
 | 8 | **Causal attribution of the shared component** | **Done** | §6.8 — bias hypothesis tested and refuted |
 | 9 | **Quantizer-level demonstration on real keys** | **Done** | §6.9 |
+| 10 | **Causal induction of the failure in an immune model** | **Done** | §6.18 — synthetic shared-component injection, dose-dependent to ×1,831 |
+| 11 | **Origin of the shared component** | **Done** | §6.21 — `μ = W_k E[z] + b_k` measured; boundary layers are bias, middle layers are massive activations |
+| 12 | **Predictive model of damage** | **Done** | §6.22 — per-model noise-response curves, R² 0.969 over 96 configurations |
 
-Items 7–9 were added and executed on 2026-08-18. Item 7 was the previous draft's
-"highest-priority next experiment"; the result appears in §6.7 and confirmed the
-prediction, while item 8 refuted the most natural follow-on hypothesis.
+Items 7–12 were added and executed on 2026-08-18. Item 7 was the previous
+draft's "highest-priority next experiment"; the result appears in §6.7 and
+confirmed the prediction, while item 8 refuted the most natural follow-on
+hypothesis. The single axis still genuinely open is variance estimation:
+outside the one seed pair of §6.13, every cell in this paper is n = 1.
 
 ### 7.1 Highest-priority next experiment
 
