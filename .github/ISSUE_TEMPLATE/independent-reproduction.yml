@@ -1,0 +1,217 @@
+name: Independent Reproduction Report
+description: Report an attempt to reproduce a TurboQuantDC experiment. Results that disagree with the reference are explicitly welcome.
+title: "[reproduction] "
+labels: ["independent-reproduction"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for running this.
+
+        **Negative and partial results are as valuable as positive ones** and are
+        recorded in the same registry table. Please do not withhold a run because
+        it disagreed with the reference.
+
+        The reference experiment, its exact configuration, and guidance on what
+        counts as a match are in
+        [REPRODUCTIONS.md](https://github.com/dhawalc/turboQuantDC/blob/HEAD/REPRODUCTIONS.md).
+
+        Note that this repository contains **two harnesses** for the Qwen2.5-7B
+        experiment which compress different things and therefore produce different
+        numbers. Please say which one you ran.
+
+  - type: dropdown
+    id: experiment
+    attributes:
+      label: Which experiment did you run?
+      options:
+        - "Qwen2.5-7B low-bit KV cache — Reference A (benchmarks/ppl_for_tom.py, keys+values 3-bit)"
+        - "Qwen2.5-7B low-bit KV cache — Reference B (paper/experiments/ppl_harness.py, keys only)"
+        - "Needle-in-a-haystack (benchmarks/niah_for_tom.py)"
+        - "Cross-architecture atlas (paper/experiments/atlas_run.py)"
+        - "Proxy-metric validation (paper/experiments/metric_analysis.py)"
+        - "Bit-width sweep"
+        - "Other experiment (describe below)"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: outcome
+    attributes:
+      label: Outcome
+      options:
+        - "matched — results agree with the reference within the stated criteria"
+        - "partially matched — some rows agree, others do not"
+        - "did not match — results disagree with the reference"
+        - "could not run — blocked by an environment, hardware, or code problem"
+    validations:
+      required: true
+
+  - type: input
+    id: commit
+    attributes:
+      label: TurboQuantDC commit hash
+      description: Full 40-character SHA of the commit you ran (`git rev-parse HEAD`).
+      placeholder: "3ef7bada67c2bb29e4824dee4b5e067a6514f0bc"
+    validations:
+      required: true
+
+  - type: input
+    id: model_revision
+    attributes:
+      label: Exact model revision
+      description: >
+        Model id and the resolved revision SHA, not just the name. The reference
+        experiment does not pin a revision, so this is how we detect upstream
+        re-uploads. From `AutoModelForCausalLM.from_pretrained(...).config._commit_hash`
+        or the snapshot directory name in your HF cache.
+      placeholder: "Qwen/Qwen2.5-7B-Instruct @ a09a35458c702b33eeacc393d103063234e8bc28"
+    validations:
+      required: true
+
+  - type: input
+    id: hardware
+    attributes:
+      label: GPU / hardware
+      description: GPU model and VRAM, plus CPU and system RAM if the run was partly on CPU.
+      placeholder: "NVIDIA A100 80GB SXM, driver 550.90, CUDA 12.4"
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Software environment
+      description: >
+        Please paste versions rather than describing them. Minimum: Python, torch,
+        transformers, bitsandbytes, datasets, accelerate.
+      placeholder: |
+        python 3.12.3
+        torch 2.6.0+cu124
+        transformers 4.51.0
+        bitsandbytes 0.45.0
+        datasets 3.2.0
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: eval_config
+    attributes:
+      label: Evaluation dataset and configuration
+      description: >
+        Dataset and split, number of tokens actually evaluated, sliding-window size
+        and stride, and whether a fresh cache was used per window.
+      placeholder: |
+        dataset: wikitext-2-raw-v1, test split, non-empty lines joined
+        evaluated tokens: 4095 (max_length=4096)
+        window / stride: 512 / 256, overlap masked to -100
+        fresh cache per window: yes
+      render: shell
+    validations:
+      required: true
+
+  - type: input
+    id: context_length
+    attributes:
+      label: Context length
+      description: Sliding-window context length in tokens (512 in the reference experiment).
+      placeholder: "512"
+    validations:
+      required: true
+
+  - type: textarea
+    id: quant_config
+    attributes:
+      label: Quantization configuration
+      description: >
+        Key bits, value bits (or FP16 if values were left uncompressed), model weight
+        quantization, fp16_window, anchor_interval, residual quant, norm correction,
+        rotation type, and seed.
+      placeholder: |
+        key_bits: 3
+        val_bits: 3          # or "FP16 / uncompressed"
+        model weights: bitsandbytes NF4, compute dtype float16
+        fp16_window: 0
+        anchor_interval: 0
+        use_residual_quant: true
+        use_norm_correction: true
+        rotation: WHT
+        seed: 42
+      render: shell
+    validations:
+      required: true
+
+  - type: input
+    id: ppl_fp16
+    attributes:
+      label: "Result — FP16 KV cache (baseline)"
+      description: Reference is 7.5225. This row should reproduce tightly (within about ±0.05).
+      placeholder: "7.5188"
+    validations:
+      required: true
+
+  - type: input
+    id: ppl_baseline
+    attributes:
+      label: "Result — quantized baseline (no key-mean correction)"
+      description: >
+        Reference is 9410.4876 (Reference A) or 10655.2268 (Reference B). This is a
+        diverged quantity; any value above roughly 100x the FP16 baseline reproduces
+        the qualitative claim. The specific magnitude is not expected to match.
+      placeholder: "11204.7"
+    validations:
+      required: true
+
+  - type: input
+    id: ppl_corrected
+    attributes:
+      label: "Result — with key-mean correction"
+      description: Reference is 7.9029 (Reference A) or 7.7235 (Reference B).
+      placeholder: "7.9412"
+    validations:
+      required: true
+
+  - type: textarea
+    id: raw_output
+    attributes:
+      label: Raw logs or machine-readable output
+      description: >
+        Paste the harness's stdout and/or the contents of the generated JSON, or link
+        to a gist / repository containing them. This is the most useful part of the
+        report — please include it when possible.
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Deviations, problems, and observations
+      description: >
+        Anything you changed from the reference procedure, anything that did not work,
+        and anything you think is wrong with the experiment or its interpretation.
+        Methodological criticism is welcome here.
+    validations:
+      required: false
+
+  - type: input
+    id: attribution
+    attributes:
+      label: Name and affiliation for the registry (optional)
+      description: >
+        How you would like to be credited in REPRODUCTIONS.md. Leave blank to be
+        recorded as anonymous. Affiliation is published only if you provide it here.
+      placeholder: "Jane Doe, Example Lab — or leave blank"
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Confirmations
+      options:
+        - label: I actually ran this experiment and these are my own measured results.
+          required: true
+        - label: I understand that appearing in the registry does not imply I endorse TurboQuantDC or its conclusions, and that my result will be recorded whether or not it agrees with the reference.
+          required: true
