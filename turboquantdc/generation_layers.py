@@ -1014,8 +1014,11 @@ class _CompressedLayer:
             all_k_means = self._all_chunk_means()[:, :, :max_length]
             all_v_idx = torch.cat(self._val_indices, dim=2)[:, :, :max_length]
             all_v_norms = torch.cat(self._val_norms, dim=2)[:, :, :max_length]
-            raw_keys = torch.cat(self._raw_keys, dim=2)[:, :, :max_length]
-            raw_vals = torch.cat(self._raw_vals, dim=2)[:, :, :max_length]
+            # Raw FP16 tensors exist only when an FP16 window is configured.
+            raw_keys = (torch.cat(self._raw_keys, dim=2)[:, :, :max_length]
+                        if self._raw_keys else None)
+            raw_vals = (torch.cat(self._raw_vals, dim=2)[:, :, :max_length]
+                        if self._raw_vals else None)
 
             self._key_indices = [all_k_idx]
             self._key_norms = [all_k_norms]
@@ -1024,8 +1027,8 @@ class _CompressedLayer:
             self._key_means = [all_k_means]
             self._val_indices = [all_v_idx]
             self._val_norms = [all_v_norms]
-            self._raw_keys = [raw_keys]
-            self._raw_vals = [raw_vals]
+            self._raw_keys = [raw_keys] if raw_keys is not None else []
+            self._raw_vals = [raw_vals] if raw_vals is not None else []
 
         # Invalidate dequant cache (cropping changes the sequence)
         if self._dequant_key_cache is not None and max_length < self._dequant_len:
