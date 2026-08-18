@@ -134,6 +134,32 @@ def main():
             print(f"  separating gap: worst broken {bmax:.4f} < best-fine floor "
                   f"{gmin:.4f}  (any threshold in between is perfect)")
 
+        # Held-out validation: fit the threshold on Qwen2.5 only (the family the
+        # failure was discovered on) and test it on everything else. This is the
+        # honest test of whether the proxy generalizes or was tuned to the data.
+        fit = [r for r in rows if r["model"].startswith("qwen2.5")]
+        held = [r for r in rows if not r["model"].startswith("qwen2.5")]
+        if fit and held and any(r["ratio"] > BROKEN for r in fit):
+            fb = max(r["logit_r_min"] for r in fit if r["ratio"] > BROKEN)
+            fg = min(r["logit_r_min"] for r in fit if r["ratio"] <= BROKEN)
+            thr = (fb + fg) / 2
+            err = sum(1 for r in held
+                      if (r["logit_r_min"] < thr) != (r["ratio"] > BROKEN))
+            hb = sum(1 for r in held if r["ratio"] > BROKEN)
+            print(f"\nHELD-OUT VALIDATION (fit on Qwen2.5, test on everything else)")
+            print(f"  threshold fitted on Qwen2.5 only: {thr:.4f}")
+            print(f"  held-out cells: {len(held)} across "
+                  f"{len({r['model'] for r in held})} models ({hb} truly broken)")
+            print(f"  misclassified: {err}/{len(held)}")
+            # the same test for cosine, using its own best in-family threshold
+            cb = max(r["vec_cos"] for r in fit if r["ratio"] > BROKEN)
+            cg = min(r["vec_cos"] for r in fit if r["ratio"] <= BROKEN)
+            cthr = (cb + cg) / 2
+            cerr = sum(1 for r in held
+                       if (r["vec_cos"] < cthr) != (r["ratio"] > BROKEN))
+            print(f"  same procedure with vec_cos (threshold {cthr:.4f}): "
+                  f"{cerr}/{len(held)} misclassified")
+
     print("\nPer-cell detail (sorted by true damage):")
     print(f"{'model':16s} {'bits':>4s} {'ctr':>5s} {'ppl':>12s} {'ratio':>10s} "
           f"{'vec_cos':>8s} {'logit_r':>8s} {'lr_min':>8s}")

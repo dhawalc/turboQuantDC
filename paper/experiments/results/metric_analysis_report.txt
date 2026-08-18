@@ -1,0 +1,121 @@
+78 (model, bits, centering) cells across 14 models
+models: falcon3-1b, gemma2-2b, gemma3-4b, llama3.2-1b, llama3.2-3b, phi4-mini, qwen2.5-1.5b, qwen2.5-3b, qwen2.5-7b, qwen3-1.7b, qwen3-4b, qwen3.5-0.8b, qwen3.5-4b, smollm2-1.7b
+
+proxy                      Spearman   Pearson   (vs log10 ppl ratio)
+------------------------------------------------------------
+vec_cos (mean)               -0.487    -0.138
+logit_r (mean)               -0.705    -0.597
+logit_r (WORST layer)        -0.754    -0.949
+spread ratio                  0.761     0.844
+
+broken cells (ppl ratio > 2.0x): 8 / 78
+
+proxy                     broken (mean)   fine (mean)   separates?
+------------------------------------------------------------------
+vec_cos (mean)                   0.9913        0.9942 no (overlap)
+logit_r (mean)                   0.9512        0.9853 no (overlap)
+logit_r (WORST layer)            0.5484        0.9775          YES
+spread ratio                     1.0570        1.0065 no (overlap)
+
+False pass rate at the 0.995 cosine criterion:
+  broken configs that PASS vec_cos >= 0.995: 2/8 = 25%
+  worst offenders (highest cosine among broken configs):
+    qwen2.5-1.5b     4bit center=False vec_cos=0.9986  logit_r_min=0.4949  ppl x376.4
+    qwen2.5-7b       4bit center=False vec_cos=0.9986  logit_r_min=0.7167  ppl x124.8
+    qwen2.5-1.5b     3bit center=False vec_cos=0.9948  logit_r_min=0.3397  ppl x580.2
+    qwen2.5-3b       3bit center=False vec_cos=0.9948  logit_r_min=0.6862  ppl x4.8
+    qwen2.5-7b       3bit center=False vec_cos=0.9948  logit_r_min=0.5374  ppl x1416.4
+
+Best single threshold on WORST-layer logit_r: 0.8266
+  misclassified 0/78 cells (false alarms 0, missed breakages 0)
+  separating gap: worst broken 0.8056 < best-fine floor 0.8475  (any threshold in between is perfect)
+
+HELD-OUT VALIDATION (fit on Qwen2.5, test on everything else)
+  threshold fitted on Qwen2.5 only: 0.7821
+  held-out cells: 62 across 11 models (1 truly broken)
+  misclassified: 1/62
+  same procedure with vec_cos (threshold 0.9945): 23/62 misclassified
+
+Per-cell detail (sorted by true damage):
+model            bits   ctr          ppl      ratio  vec_cos  logit_r   lr_min
+------------------------------------------------------------------------------------
+qwen2.5-7b          3 False    10655.227    1416.44   0.9948   0.9560   0.5374
+qwen2.5-1.5b        2 False    15061.864    1347.79   0.9818   0.9147   0.2584
+qwen2.5-1.5b        3 False     6484.370     580.24   0.9948   0.9542   0.3397
+qwen2.5-1.5b        4 False     4205.868     376.36   0.9986   0.9736   0.4949
+qwen2.5-7b          4 False      938.458     124.75   0.9986   0.9773   0.7167
+qwen2.5-3b          2 False      398.021      40.98   0.9815   0.9387   0.5484
+qwen3-1.7b          2 False      407.278      21.12   0.9855   0.9199   0.8056
+qwen2.5-3b          3 False       46.454       4.78   0.9948   0.9753   0.6862
+qwen3-1.7b          3 False       37.599       1.95   0.9955   0.9716   0.9182
+qwen3-1.7b          2  True       27.222       1.41   0.9933   0.9776   0.9742
+llama3.2-1b         2 False       20.310       1.26   0.9823   0.9566   0.9522
+llama3.2-1b         2  True       20.183       1.25   0.9912   0.9780   0.9777
+qwen3-4b            2 False       19.683       1.21   0.9832   0.9510   0.8758
+smollm2-1.7b        2  True       12.394       1.21   0.9911   0.9781   0.9763
+qwen2.5-3b          4 False       11.621       1.20   0.9986   0.9898   0.8475
+smollm2-1.7b        2 False       11.595       1.13   0.9842   0.9526   0.9434
+llama3.2-3b         2 False       15.573       1.11   0.9816   0.9591   0.9557
+phi4-mini           2  True       12.074       1.08   0.9896   0.9776   0.9773
+phi4-mini           2 False       11.966       1.07   0.9820   0.9614   0.9492
+llama3.2-3b         2  True       15.030       1.07   0.9901   0.9777   0.9773
+qwen3-4b            2  True       17.436       1.07   0.9911   0.9775   0.9713
+qwen2.5-1.5b        2  True       11.963       1.07   0.9904   0.9774   0.9765
+llama3.2-1b         3 False       17.263       1.07   0.9950   0.9858   0.9844
+gemma3-4b           2  True       30.549       1.06   0.9896   0.9771   0.9735
+llama3.2-1b         3  True       17.096       1.06   0.9974   0.9924   0.9923
+qwen2.5-3b          2  True       10.221       1.05   0.9904   0.9774   0.9767
+qwen3-1.7b          4 False       20.220       1.05   0.9988   0.9904   0.9734
+llama3.2-3b         3 False       14.478       1.04   0.9948   0.9866   0.9854
+smollm2-1.7b        3  True       10.600       1.03   0.9971   0.9924   0.9918
+qwen3-4b            4 False       16.733       1.03   0.9987   0.9935   0.9639
+qwen3-4b            3 False       16.721       1.03   0.9951   0.9822   0.9013
+qwen2.5-7b          3  True        7.723       1.03   0.9973   0.9921   0.9916
+smollm2-1.7b        3 False       10.528       1.03   0.9955   0.9845   0.9809
+gemma2-2b           2 False       15.768       1.03   0.9808   0.9648   0.9597
+falcon3-1b          2 False       12.003       1.02   0.9804   0.9604   0.9507
+qwen3-4b            3  True       16.624       1.02   0.9974   0.9921   0.9874
+llama3.2-3b         3  True       14.255       1.02   0.9971   0.9922   0.9921
+phi4-mini           3 False       11.336       1.02   0.9949   0.9873   0.9826
+gemma2-2b           2  True       15.618       1.02   0.9881   0.9774   0.9770
+qwen2.5-1.5b        3  True       11.340       1.01   0.9971   0.9921   0.9914
+gemma2-2b           3 False       15.608       1.01   0.9945   0.9883   0.9866
+phi4-mini           3  True       11.290       1.01   0.9970   0.9922   0.9921
+qwen2.5-3b          3  True        9.848       1.01   0.9972   0.9921   0.9919
+llama3.2-1b         4  True       16.388       1.01   0.9993   0.9965   0.9965
+llama3.2-1b         4 False       16.382       1.01   0.9987   0.9947   0.9943
+falcon3-1b          3 False       11.866       1.01   0.9943   0.9867   0.9830
+qwen3-1.7b          3  True       19.512       1.01   0.9981   0.9921   0.9895
+gemma3-4b           2 False       29.108       1.01   0.9809   0.9591   0.9316
+llama3.2-3b         4  True       14.143       1.01   0.9992   0.9965   0.9964
+falcon3-1b          2  True       11.846       1.01   0.9894   0.9773   0.9759
+gemma2-2b           3  True       15.537       1.01   0.9965   0.9921   0.9919
+qwen3.5-0.8b        2 False       20.546       1.01   0.9800   0.9647   0.9606
+llama3.2-3b         4 False       14.102       1.01   0.9986   0.9949   0.9945
+qwen2.5-7b          4  True        7.582       1.01   0.9992   0.9964   0.9961
+smollm2-1.7b        4 False       10.330       1.01   0.9988   0.9942   0.9931
+smollm2-1.7b        4  True       10.319       1.01   0.9992   0.9965   0.9964
+qwen2.5-3b          4  True        9.765       1.01   0.9992   0.9964   0.9963
+qwen3.5-4b          3 False       10.817       1.00   0.9942   0.9886   0.9880
+qwen3.5-4b          3  True       10.815       1.00   0.9963   0.9920   0.9919
+phi4-mini           4  True       11.177       1.00   0.9992   0.9964   0.9964
+phi4-mini           4 False       11.167       1.00   0.9986   0.9951   0.9936
+gemma2-2b           4  True       15.419       1.00   0.9991   0.9964   0.9964
+qwen2.5-1.5b        4  True       11.201       1.00   0.9991   0.9964   0.9958
+falcon3-1b          4  True       11.741       1.00   0.9992   0.9964   0.9963
+falcon3-1b          3  True       11.739       1.00   0.9969   0.9920   0.9915
+qwen3.5-0.8b        3 False       20.404       1.00   0.9942   0.9881   0.9865
+qwen3.5-0.8b        2  True       20.398       1.00   0.9879   0.9771   0.9769
+falcon3-1b          4 False       11.728       1.00   0.9985   0.9949   0.9936
+qwen3.5-0.8b        4  True       20.387       1.00   0.9990   0.9964   0.9964
+gemma2-2b           4 False       15.390       1.00   0.9985   0.9954   0.9949
+qwen3.5-0.8b        3  True       20.365       1.00   0.9965   0.9919   0.9919
+qwen3-4b            4  True       16.254       1.00   0.9993   0.9964   0.9950
+qwen3.5-0.8b        4 False       20.341       1.00   0.9984   0.9953   0.9948
+gemma3-4b           4  True       28.677       1.00   0.9992   0.9964   0.9960
+qwen3-1.7b          4  True       19.113       0.99   0.9995   0.9964   0.9956
+gemma3-4b           3  True       28.454       0.99   0.9970   0.9920   0.9911
+gemma3-4b           3 False       27.730       0.96   0.9945   0.9864   0.9769
+gemma3-4b           4 False       26.992       0.94   0.9985   0.9948   0.9907
+
+wrote /home/dhawal/turboQuantDC/paper/experiments/results/metric_analysis_cells.json

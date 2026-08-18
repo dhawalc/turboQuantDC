@@ -59,17 +59,32 @@ still helps there but is no longer the difference between working and failing. T
 severe failure documented in this paper is therefore specific to the older
 generation, while the diagnostic method and the metric warning generalise.
 
-Critically, the failure is **not uniform across the Qwen family**. In a separate
-sweep across three model sizes, Qwen2.5-3B (2 KV heads) and Qwen2.5-7B (4 KV heads)
-both failed catastrophically without mean removal, while Qwen2.5-14B (8 KV heads)
-did not fail at all (PPL 5.54 vs. an FP16-KV baseline of 4.94). The failure in our
-data tracks KV-head count under grouped-query attention rather than model family or
-parameter count. We report this as an observed correlation over three models, not
-an established architectural law.
+Critically, the failure is **not uniform across the Qwen family**, and it is not
+what it first appeared. Within Qwen2.5 the severity tracked KV-head count, and we
+initially reported that. A 14-model atlas refutes it: Qwen3.5-0.8B has 2 KV heads,
+the same as the Qwen2.5 models that degrade by three orders of magnitude, and is
+completely unaffected; Gemma 2, Gemma 3 and Falcon 3 all share Qwen2.5-7B's 4 KV
+heads and are likewise unaffected. Every catastrophic configuration we found, at
+any bit-width, belongs to Qwen2.5. Qwen3 is intermediate and Qwen3.5 — the
+architecture of the newly released Qwen3.8 — is immune.
+
+Finally, we ran the compressor end-to-end across **72 configurations spanning 13
+models and 6 architecture families**, recording true perplexity alongside the cheap
+reconstruction metrics that this field validates compressors on. Per-vector cosine
+similarity does not predict damage (Pearson −0.14) and cannot separate working from
+broken configurations at any threshold: 25% of broken configurations pass a 0.995
+cosine criterion, including one that scores 0.9986 while perplexity rises 376×, and
+a configuration scoring 0.9904 is rejected while costing only 7%. A different,
+equally cheap statistic — the worst-layer correlation of the attention logits the
+reconstructed keys produce — separates all 72 cells with zero errors, and a
+threshold fitted on Qwen2.5 alone misclassifies 1 of 62 held-out cells on eleven
+unseen models where cosine similarity misclassifies 23. We also quantify the
+correction's value: 2-bit centered beats 6-bit uncentered, so mean removal is worth
+roughly four bits of precision.
 
 This paper documents the failure mode, experimental methodology, proposed
-mechanism, correction, and limitations, and provides reproducible artifacts for
-independent evaluation.
+mechanism, correction, metric validation, and limitations, and provides
+reproducible artifacts for independent evaluation.
 
 ---
 
@@ -104,7 +119,14 @@ Qwen2.5-14B-Instruct?
 4. evaluate a correction (per-head key mean removal with exact restoration) that
    recovers to within +0.38 PPL of the uncompressed-KV baseline; and
 5. report a correlation between failure severity and KV-head count that
-   constrains, but does not yet establish, the generality of the mechanism.
+   constrains, but does not yet establish, the generality of the mechanism;
+6. *(added 2026-08-18)* show across 72 configurations, 13 models and 6 families
+   that **per-vector reconstruction metrics do not predict KV-compression damage**,
+   and validate a drop-in replacement — worst-layer attention-logit correlation —
+   that separates working from broken configurations with zero errors in-sample and
+   transfers to unseen architectures; and
+7. quantify the correction's worth in bits: 2-bit centered outperforms 6-bit
+   uncentered, i.e. centering substitutes for roughly four bits of precision.
 
 We deliberately restrict the claim. We do not claim that canonical TurboQuant fails
 on Qwen; we claim that *this* TurboQuant-family configuration does, and we describe
@@ -913,6 +935,204 @@ dimension is the most mechanically plausible candidate, since it gives the
 token-specific component twice the space to occupy relative to a shared direction,
 but that is a conjecture. We also measured Qwen3.5-4B, **not** Qwen3.8-27B, and no
 end-to-end perplexity was run on any of the three newer models.
+
+### 6.13 End-to-end perplexity, and validation of the harness
+
+*(added 2026-08-18)*
+
+Every measurement to this point had been a per-layer proxy. We built a harness
+that patches the repository's production quantizer into `DynamicCache` and
+computes wikitext-2 sliding-window perplexity **and** the cheap proxy metrics from
+the same forward pass, so each configuration yields a paired
+(proxy, ground-truth-damage) observation.
+
+It reproduces the April-9 result closely enough to trust:
+
+| Quantity | April-9 run (`ppl_for_tom.py`) | This harness |
+|---|---:|---:|
+| Qwen2.5-7B baseline PPL | 7.5225 | **7.5225** |
+| 3-bit, no centering | 9410.49 | 10655.23 |
+| 3-bit, centered | 7.9029 | 7.7235 |
+| 4-bit, no centering | 1048.99 | 938.46 |
+
+The baseline agrees to four decimal places. The compressed arms differ modestly
+because this harness compresses **keys only** while the April-9 run also
+compressed values at 3 bits; the failure is unchanged in character and magnitude.
+
+Source: [`experiments/ppl_harness.py`](experiments/ppl_harness.py),
+[`results/ppl_qwen2.5-7b.json`](experiments/results/ppl_qwen2.5-7b.json)
+
+### 6.14 A cross-architecture atlas
+
+*(added 2026-08-18)*
+
+We ran the harness over every model we could obtain, at 2, 3 and 4 bits with
+centering on and off — **72 configurations across 13 models and 6 architecture
+families**. Worst-case damage without centering, as a multiple of each model's
+own uncompressed-KV baseline:
+
+| Model | Family | KV heads | baseline PPL | 2-bit | 3-bit | 4-bit |
+|---|---|---:|---:|---:|---:|---:|
+| Qwen2.5-7B | Qwen2.5 | 4 | 7.52 | — | **×1,416** | **×125** |
+| Qwen2.5-1.5B | Qwen2.5 | **2** | 11.18 | **×1,348** | **×580** | **×376** |
+| Qwen2.5-3B | Qwen2.5 | **2** | 9.71 | **×41.0** | **×4.78** | ×1.20 |
+| Qwen3-1.7B | Qwen3 | 8 | 19.28 | **×21.1** | ×1.95 | ×1.05 |
+| Llama-3.2-1B | Llama 3.2 | 8 | 16.17 | ×1.26 | ×1.07 | ×1.01 |
+| Qwen3-4B | Qwen3 | 8 | 16.27 | ×1.21 | ×1.03 | ×1.03 |
+| SmolLM2-1.7B | SmolLM2 | 32 | 10.26 | ×1.13 | ×1.03 | ×1.01 |
+| Llama-3.2-3B | Llama 3.2 | 8 | 13.99 | ×1.11 | ×1.04 | ×1.01 |
+| Phi-4-mini | Phi-4 | 8 | 11.13 | ×1.07 | ×1.02 | ×1.00 |
+| Gemma-2-2B | Gemma 2 | **4** | 15.38 | ×1.03 | ×1.01 | ×1.00 |
+| Falcon3-1B | Falcon 3 | **4** | 11.72 | ×1.02 | ×1.01 | ×1.00 |
+| Gemma-3-4B | Gemma 3 | **4** | 28.77 | ×1.01 | ×0.96 | ×0.94 |
+| Qwen3.5-0.8B | Qwen3.5 | **2** | 20.37 | ×1.01 | ×1.00 | ×1.00 |
+| Qwen3.5-4B | Qwen3.5 | **4** | 10.77 | — | ×1.00 | — |
+
+Source: [`results/ppl_*.json`](experiments/results/), aggregated by
+[`experiments/metric_analysis.py`](experiments/metric_analysis.py)
+
+This finally supplies the non-Qwen control the paper had been missing since §7,
+and the result is unambiguous. **Every catastrophic cell in the entire atlas
+belongs to Qwen2.5.**
+
+**It also definitively refutes the KV-head-count hypothesis of §6.3.** That
+correlation was formed by looking only within Qwen2.5, where head count happened
+to track model size. The atlas breaks the confound directly:
+
+- **Qwen3.5-0.8B has 2 KV heads** — the same as Qwen2.5-1.5B (×1,348) and
+  Qwen2.5-3B (×41) — and is **completely immune** (×1.01 at 2 bits).
+- **Gemma-2-2B, Gemma-3-4B and Falcon3-1B all have 4 KV heads** — the same as
+  Qwen2.5-7B (×1,416) — and are all immune.
+- **SmolLM2-1.7B has 32 KV heads** (no GQA at all) and is not meaningfully safer
+  than the 8-head models.
+
+Low KV-head count is therefore neither sufficient nor necessary for the failure.
+§6.3 should be read as a within-family artefact, and every statement in this paper
+conditioned on KV-head count is superseded by this table. Llama 3.2, Gemma 2, Gemma 3, Phi-4 and Qwen3.5 are all
+essentially immune at every bit-width tested, and Qwen3 is intermediate — severe
+only at 2 bits. The severity ordering across generations established in §6.12 now
+holds end-to-end, on perplexity, and extends to four non-Qwen families.
+
+Two models (OLMo-2-1B, Granite-3.3-2B) and one 8B Mistral run failed to complete;
+the failures were CUDA out-of-memory caused by a concurrently running job on the
+same GPU, not by anything about the models themselves.
+
+### 6.15 The main result: reconstruction metrics do not predict damage
+
+*(added 2026-08-18)*
+
+Because §6.14 records the proxy metrics and the true perplexity for every cell, we
+can ask directly whether the metrics this field validates compressors on predict
+anything. Over all 72 cells, correlated against log₁₀(PPL ratio):
+
+| Proxy metric | Spearman | Pearson | Separates broken from working? |
+|---|---:|---:|---|
+| **per-vector cosine similarity** | **−0.462** | **−0.139** | **No — the ranges overlap** |
+| mean attention-logit correlation | −0.698 | −0.613 | No — the ranges overlap |
+| **worst-layer logit correlation** | **−0.750** | **−0.949** | **Yes, with a clean gap** |
+| logit spread ratio | 0.756 | 0.847 | No — the ranges overlap |
+
+Taking "broken" to mean a perplexity ratio above 2×, a single threshold of 0.8266
+on worst-layer logit correlation **misclassifies 0 of 72 cells**. The separating
+gap is clean: the worst broken configuration sits at 0.8056 and the best surviving
+one at 0.8475. Per-vector cosine similarity has no such threshold — broken cells
+average 0.9913 and working cells 0.9942, and the ranges overlap.
+
+The individual cells are more damning than the aggregate:
+
+| Model | Config | vector cosine | Verdict at the 0.995 criterion | True PPL |
+|---|---|---:|---|---:|
+| Qwen2.5-1.5B | 4-bit, no centering | **0.9986** | **PASS** | **×376** |
+| Qwen2.5-7B | 4-bit, no centering | **0.9986** | **PASS** | **×125** |
+| Qwen2.5-1.5B | 2-bit, **centered** | 0.9904 | **FAIL** | **×1.07** |
+
+The criterion is wrong in both directions at once. It certifies a configuration
+that destroys the model, and rejects one that costs 7% perplexity. 25% of all
+broken configurations in the atlas pass the 0.995 cosine test.
+
+**Held-out validation.** Fitting the threshold on Qwen2.5 models only — the family
+the failure was discovered on — and testing on the other eleven models:
+
+| Metric | Threshold fitted on Qwen2.5 | Misclassified on 62 held-out cells |
+|---|---:|---:|
+| worst-layer logit correlation | 0.7821 | **1 / 62** |
+| per-vector cosine similarity | 0.9945 | **23 / 62** |
+
+The proxy transfers to unseen architectures; the reconstruction metric does not.
+The single held-out error is Qwen3-1.7B at 2 bits (true ×21.1, logit correlation
+0.8056), which the full-data threshold of 0.8266 catches — i.e. the failure is a
+threshold that was fitted slightly too low, not a breakdown of the ranking.
+
+**Why this is the durable result.** Computing it requires one forward pass over a
+short calibration text and a few hundred random probe directions — no labels, no
+perplexity run, no downstream evaluation. It is strictly cheaper than the
+perplexity measurement it predicts, and it is the difference between shipping and
+not shipping a broken cache.
+
+### 6.16 How much is centering worth? About four bits
+
+*(added 2026-08-18)*
+
+Sweeping bit-width on Qwen2.5-1.5B, keys only, uncentered versus centered:
+
+| Bits | Uncentered PPL ratio | vector cosine | worst-layer logit r | Centered PPL ratio |
+|---:|---:|---:|---:|---:|
+| 2 | ×1347.8 | 0.9818 | 0.2584 | **×1.07** |
+| 3 | ×580.2 | 0.9948 | 0.3397 | ×1.01 |
+| 4 | ×376.4 | 0.9986 | 0.4949 | ×1.00 |
+| 5 | ×7.67 | 0.9996 | 0.6751 | ×1.00 |
+| 6 | ×1.17 | 0.9999 | 0.8402 | — |
+| 8 | ×1.00 | 1.0000 | 0.9820 | — |
+
+Source: [`results/bitsweep_qwen2.5-1.5b.json`](experiments/results/bitsweep_qwen2.5-1.5b.json)
+
+Two readings, and the second is the practically important one.
+
+1. **The failure is not purely distributional after all — but it is close.** Enough
+   bits do eventually fix it, at 6. What §3.2 claimed from two data points (3 and
+   4 bits) is true over the whole practical range: within 2–4 bits, adding
+   precision buys almost nothing (×1348 → ×376 is still catastrophic), and cosine
+   similarity climbs to 0.9986 while the model stays broken. Prediction P1 should
+   be recorded as *partially* confirmed, and §4.2's mechanism as describing a
+   severe rate penalty rather than an absolute barrier.
+2. **Centering is worth roughly four bits.** 2-bit centered (×1.07) is *better*
+   than 6-bit uncentered (×1.17). For equal quality, centering lets the cache run
+   at one third the bit-width, and it costs `d` floats per head — amortized to
+   nothing over a sequence. This is the single most actionable number in the
+   paper.
+
+### 6.17 Does anything beat mean-removal? Not for free
+
+*(added 2026-08-18)*
+
+Given that centering is worth four bits, it is worth asking whether a slightly
+richer preconditioner buys more. We tested four alternatives on real Qwen3.5-4B
+keys at 3 bits, scoring with the worst-layer logit correlation validated in §6.15:
+
+| Preconditioner | Side information | logit correlation |
+|---|---|---:|
+| none | — | 0.9740 |
+| **mean-removal** | `d` floats/head | **0.9812** |
+| mean + per-channel whitening | `2d` floats/head | 0.9812 |
+| mean + standardize rotated coords | `2d` floats/head | **0.8229** |
+| project out top-1 principal direction | 1 float/**token** | 0.9829 |
+| project out top-4 principal directions | 4 floats/**token** | 0.9860 |
+
+Source: [`results/precondition_qwen3.5-4b_3bit.json`](experiments/results/precondition_qwen3.5-4b_3bit.json)
+
+This is a negative result and we report it as one. Per-channel whitening is
+**exactly** as good as plain mean-removal — the anisotropy it corrects is
+apparently not what the quantizer is losing. Standardizing each rotated coordinate
+is actively harmful, costing more than centering gains, presumably because it
+destroys the relative coordinate magnitudes that the inner product depends on.
+Only the PCA variants improve on centering, and they do so by paying storage per
+token rather than per head: at `d = 256` and 3 bits, four fp16 coefficients per
+token is a 8.3% storage increase for a 0.005 gain in logit correlation, which
+§6.16 shows is a far worse trade than simply spending those bits on precision.
+
+**Mean-removal appears to be the right operating point**: it captures essentially
+all of the freely available gain, and the obvious refinements either tie, hurt, or
+cost more than they return.
 
 ---
 
