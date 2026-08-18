@@ -51,8 +51,12 @@ def main():
             if r.get("bits") and r.get("center") is False:
                 by_bits[r["bits"]] = r["ppl"] / base
         worst = max(by_bits.values(), default=0)
-        rows.append((worst, d["name"], fam(d["name"]), d.get("kv_heads"),
-                     base, by_bits))
+        kv = d.get("kv_heads")
+        if kv in (-1, None):   # config lacks num_key_value_heads => MHA
+            kv = {"pythia-2.8b": "32 (MHA)", "opt-2.7b": "32 (MHA)"}.get(d["name"], "MHA")
+        elif d["name"] in ("qwen1.5-1.8b", "olmo2-1b", "smollm2-1.7b") or kv >= 16:
+            kv = f"{kv} (MHA)" if kv >= 16 else kv
+        rows.append((worst, d["name"], fam(d["name"]), kv, base, by_bits))
     rows.sort(reverse=True)
     print("| Model | Family | KV heads | baseline PPL | 2-bit | 3-bit | 4-bit |")
     print("|---|---|---:|---:|---:|---:|---:|")

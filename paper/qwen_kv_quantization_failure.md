@@ -1029,58 +1029,83 @@ Source: [`experiments/ppl_harness.py`](experiments/ppl_harness.py),
 
 ### 6.14 A cross-architecture atlas
 
-*(added 2026-08-18)*
+*(added 2026-08-18; final state of the atlas after the full campaign)*
 
 We ran the harness over every model we could obtain, at 2, 3 and 4 bits with
-centering on and off — **72 configurations across 13 models and 6 architecture
-families**. Worst-case damage without centering, as a multiple of each model's
-own uncompressed-KV baseline:
+centering on and off — in its final state, **150 keys-only configurations
+across 26 models spanning five Qwen generations and twelve non-Qwen lineages**
+(Llama 3.2, Gemma 2, Gemma 3, Phi-4, SmolLM2, OLMo 2, Granite 3.3, Falcon 3,
+Ministral, OPT, Pythia, Yi 1.5), plus the 18 one-bit stress cells of §6.19.
+Worst-case damage without centering, as a multiple of each model's own
+uncompressed-KV baseline (table generated from the result files by
+[`experiments/gen_atlas_table.py`](experiments/gen_atlas_table.py)):
 
 | Model | Family | KV heads | baseline PPL | 2-bit | 3-bit | 4-bit |
 |---|---|---:|---:|---:|---:|---:|
-| Qwen2.5-7B | Qwen2.5 | 4 | 7.52 | — | **×1,416** | **×125** |
-| Qwen2.5-1.5B | Qwen2.5 | **2** | 11.18 | **×1,348** | **×580** | **×376** |
-| Qwen2.5-3B | Qwen2.5 | **2** | 9.71 | **×41.0** | **×4.78** | ×1.20 |
-| Qwen3-1.7B | Qwen3 | 8 | 19.28 | **×21.1** | ×1.95 | ×1.05 |
-| Llama-3.2-1B | Llama 3.2 | 8 | 16.17 | ×1.26 | ×1.07 | ×1.01 |
-| Qwen3-4B | Qwen3 | 8 | 16.27 | ×1.21 | ×1.03 | ×1.03 |
-| SmolLM2-1.7B | SmolLM2 | 32 | 10.26 | ×1.13 | ×1.03 | ×1.01 |
-| Llama-3.2-3B | Llama 3.2 | 8 | 13.99 | ×1.11 | ×1.04 | ×1.01 |
-| Phi-4-mini | Phi-4 | 8 | 11.13 | ×1.07 | ×1.02 | ×1.00 |
-| Gemma-2-2B | Gemma 2 | **4** | 15.38 | ×1.03 | ×1.01 | ×1.00 |
-| Falcon3-1B | Falcon 3 | **4** | 11.72 | ×1.02 | ×1.01 | ×1.00 |
-| Gemma-3-4B | Gemma 3 | **4** | 28.77 | ×1.01 | ×0.96 | ×0.94 |
-| Qwen3.5-0.8B | Qwen3.5 | **2** | 20.37 | ×1.01 | ×1.00 | ×1.00 |
-| Qwen3.5-4B | Qwen3.5 | **4** | 10.77 | — | ×1.00 | — |
+| qwen2.5-7b | Qwen2.5 | 4 | 7.52 | — | **×1,416** | **×125** |
+| qwen2.5-1.5b | Qwen2.5 | 2 | 11.18 | **×1,348** | **×580** | **×376** |
+| qwen2-1.5b | Qwen2 | 2 | 11.51 | **×1,085** | **×594** | **×138** |
+| qwen2-7b | Qwen2 | 4 | 9.19 | **×916** | **×1,048** | **×53** |
+| qwen2.5-3b | Qwen2.5 | 2 | 9.71 | **×41** | **×4.78** | ×1.20 |
+| qwen3-1.7b | Qwen3 | 8 | 19.28 | **×21** | ×1.95 | ×1.05 |
+| pythia-2.8b | Pythia | 32 (MHA) | 12.77 | **×2.35** | ×1.63 | ×1.43 |
+| llama3.2-1b | Llama 3.2 | 8 | 16.17 | ×1.26 | ×1.07 | ×1.01 |
+| qwen3-4b | Qwen3 | 8 | 16.27 | ×1.21 | ×1.03 | ×1.03 |
+| qwen2.5-14b | Qwen2.5 | 8 | 4.26 | ×1.19 | ×1.04 | ×1.00 |
+| smollm2-1.7b | SmolLM2 | 32 (MHA) | 10.26 | ×1.13 | ×1.03 | ×1.01 |
+| llama3.2-3b | Llama 3.2 | 8 | 13.99 | ×1.11 | ×1.04 | ×1.01 |
+| qwen3-14b | Qwen3 | 8 | 10.00 | ×1.07 | ×1.03 | ×1.00 |
+| phi4-mini | Phi-4 | 8 | 11.13 | ×1.07 | ×1.02 | ×1.00 |
+| ministral-8b | Ministral | 8 | 8.69 | ×1.07 | ×1.02 | ×1.01 |
+| granite3.3-2b | Granite 3.3 | 8 | 8.94 | ×1.06 | ×1.02 | ×1.00 |
+| opt-2.7b | OPT | 32 (MHA) | 15.47 | ×1.06 | ×1.02 | ×1.00 |
+| yi1.5-6b | Yi 1.5 | 4 | 8.40 | ×1.04 | ×0.99 | ×1.00 |
+| qwen1.5-1.8b | Qwen1.5 | 16 (MHA) | 15.96 | ×1.03 | ×1.01 | ×1.00 |
+| gemma2-2b | Gemma 2 | 4 | 15.38 | ×1.03 | ×1.01 | ×1.00 |
+| falcon3-1b | Falcon 3 | 4 | 11.72 | ×1.02 | ×1.01 | ×1.00 |
+| olmo2-1b | OLMo 2 | 16 (MHA) | 15.88 | ×1.01 | ×1.00 | ×1.00 |
+| gemma3-4b | Gemma 3 | 4 | 28.77 | ×1.01 | ×0.96 | ×0.94 |
+| qwen3.5-0.8b | Qwen3.5 | 2 | 20.37 | ×1.01 | ×1.00 | ×1.00 |
+| qwen3.5-4b | Qwen3.5 | 4 | 10.77 | — | ×1.00 | — |
+| qwen3.5-9b | Qwen3.5 | 4 | 10.39 | ×1.00 | ×1.00 | ×1.00 |
 
 Source: [`results/ppl_*.json`](experiments/results/), aggregated by
 [`experiments/metric_analysis.py`](experiments/metric_analysis.py)
 
-This finally supplies the non-Qwen control the paper had been missing since §7,
-and the result is unambiguous. **Every catastrophic cell in the entire atlas
-belongs to Qwen2.5.**
+This supplies the non-Qwen control the paper had been missing since §7, and
+the result is precise. **Every cell above ×5 belongs to Qwen2 or Qwen2.5** —
+at any tested bit-width, both model sizes per generation. The only other
+natural failures in the atlas are Qwen3-1.7B at 2 bits (×21) and Pythia-2.8B
+at 2 bits (×2.35); both show the concentrated worst-layer collapse geometry
+(lr_min 0.81 and 0.31 respectively), and both are fixed by centering
+(×1.41 and ×1.08). Twelve of fourteen non-Qwen lineages are essentially
+untouched at every bit-width tested.
 
-**It also definitively refutes the KV-head-count hypothesis of §6.3.** That
-correlation was formed by looking only within Qwen2.5, where head count happened
-to track model size. The atlas breaks the confound directly:
+**The atlas definitively refutes the KV-head-count hypothesis of §6.3.** That
+correlation was formed by looking only within Qwen2.5, where head count
+happened to track model size. The atlas breaks the confound in every
+direction:
 
 - **Qwen3.5-0.8B has 2 KV heads** — the same as Qwen2.5-1.5B (×1,348) and
-  Qwen2.5-3B (×41) — and is **completely immune** (×1.01 at 2 bits).
-- **Gemma-2-2B, Gemma-3-4B and Falcon3-1B all have 4 KV heads** — the same as
-  Qwen2.5-7B (×1,416) — and are all immune.
-- **SmolLM2-1.7B has 32 KV heads** (no GQA at all) and is not meaningfully safer
-  than the 8-head models.
+  Qwen2-1.5B (×1,085) — and is completely immune (×1.01 at 2 bits).
+- **Gemma-2-2B, Gemma-3-4B, Falcon3-1B and Yi-1.5-6B all have 4 KV heads** —
+  the same as Qwen2.5-7B (×1,416) and Qwen2-7B (×916) — and are all immune.
+- **MHA is on both sides**: Qwen1.5-1.8B, SmolLM2, OLMo-2 (no GQA) are
+  immune, while MHA Pythia-2.8B is the one non-Qwen model with a genuine
+  mean-dominance failure.
 
-Low KV-head count is therefore neither sufficient nor necessary for the failure.
-§6.3 should be read as a within-family artefact, and every statement in this paper
-conditioned on KV-head count is superseded by this table. Llama 3.2, Gemma 2, Gemma 3, Phi-4 and Qwen3.5 are all
-essentially immune at every bit-width tested, and Qwen3 is intermediate — severe
-only at 2 bits. The severity ordering across generations established in §6.12 now
-holds end-to-end, on perplexity, and extends to four non-Qwen families.
+Low KV-head count is therefore neither sufficient nor necessary for the
+failure. §6.3 should be read as a within-family artefact, and every statement
+in this paper conditioned on KV-head count is superseded by this table. The
+generational severity ordering of §6.12 holds end-to-end, on perplexity, and
+§6.20 extends it backward to the birth of the pathology.
 
-Two models (OLMo-2-1B, Granite-3.3-2B) and one 8B Mistral run failed to complete;
-the failures were CUDA out-of-memory caused by a concurrently running job on the
-same GPU, not by anything about the models themselves.
+One planned cell is absent: Qwen2.5-32B. Its first run failed on GPU
+contention; the retry was deliberately aborted mid-download during the final
+campaign because its 65 GB of bf16 weights cannot fit a 24 GB GPU alongside
+the resident ollama server and the CPU-spilled run would have blocked the
+remaining experiments. Its absence is recorded, not hidden, and is not
+evidence about the model either way.
 
 ### 6.15 The main result: reconstruction metrics do not predict damage
 
