@@ -1165,11 +1165,21 @@ contrast: if Gemma 3, Gemma 4, or Qwen 3 shows a comparably large shared key
 component (cos ≈ 0.7, energy fraction ≈ 0.5) while quantizing cleanly, then the
 shared component is not sufficient to cause the failure and §4.2 is incomplete.
 
-*Partially completed 2026-08-18: §6.10 measured Qwen3-8B, a bias-free QK-Norm
-contrast, and found the bulk shared component unchanged. What that run did not
-settle is whether such a model **fails end-to-end** — no perplexity was measured.
-The highest-value next step is therefore a 3-bit PPL run on Qwen3-8B with centering
-on and off, which needs no new model.*
+*Completed 2026-08-18 (second campaign). §6.13–§6.17 supply end-to-end perplexity
+across 14 models and 6 families, which settles both open items: the non-Qwen
+control (item 4 — Llama 3.2, Gemma 2/3, Phi-4, Falcon 3, SmolLM2 are all immune)
+and the question of whether newer models fail (they do not). The KV-head
+hypothesis is refuted outright.*
+
+**The highest-priority remaining experiment is now a negative control for the
+metric claim.** §6.15's proxy separates 72 cells perfectly, but only 8 of them are
+broken, and all 8 come from one family. A metric validated on 8 positives from one
+architecture is not yet a validated metric. The right next step is to *manufacture*
+diverse breakages — inject synthetic shared components of controlled magnitude into
+models that do not naturally fail (Llama, Gemma, Phi), confirm perplexity
+collapses, and check that the proxy still fires. That converts the claim from
+"separates the failures we happened to find" into "detects failures by
+construction."*
 
 Two further candidates would be decisive and are available locally as GGUF blobs:
 
@@ -1416,6 +1426,31 @@ relative logit structure that generation depends on.
 17. **`n = 2` for the cross-architecture comparison.** §6.10's inference that
     severity tracks the tail of the ρ distribution rather than its centre rests on
     two models, one run each.
+
+*Added for §6.13–§6.17:*
+
+18. **The metric result rests on only 8 broken cells, all from one family.** 72
+    cells sounds like a lot, but 64 of them are working configurations. Every
+    positive example of breakage in the atlas is a Qwen2.5 model. The proxy's
+    perfect separation could reflect one failure mode rather than a general
+    property, and the held-out test — while it uses 11 unseen models — contains
+    only 1 broken cell. §7.1 describes the synthetic-injection experiment that
+    would fix this, and until it is run the claim should be stated as *"predicts
+    the failures we observed, where reconstruction metrics do not"*, not as a
+    general detector.
+19. **Single seed, single corpus, single context length.** Every cell is one run
+    on the first 4,095 tokens of wikitext-2 with a 512-token window. No variance
+    estimates. The effect sizes for the broken cells are enormous, but the
+    near-boundary cells (Qwen3-1.7B at 3 bits, ×1.95) sit close to the ×2 cutoff
+    that defines "broken", and that cutoff is a choice.
+20. **Keys only.** The harness compresses keys and leaves values in FP16, which
+    isolates the key path but does not measure a deployable configuration. The
+    April-9 runs that compressed both are the point of comparison.
+21. **The bit-sweep is one model.** §6.16's "centering is worth four bits" is
+    measured on Qwen2.5-1.5B alone. The direction is very likely general; the
+    specific figure of four bits is not established beyond that model.
+22. **Three models failed to run** (OLMo-2-1B, Granite-3.3-2B, Ministral-8B) from
+    GPU contention. Their absence is not evidence about them either way.
 12. **The shared component's origin is only partly explained.** §6.8 shows it is
     not the `k_proj` bias. The residual attribution — `W_k · E[x]`, i.e. the
     residual stream's own persistent mean — is inferred by elimination, not
