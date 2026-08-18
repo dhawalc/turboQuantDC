@@ -66,11 +66,19 @@ class KVCompressor:
     """Patches DynamicCache.update so cached keys (and optionally values) pass
     through the repository's production quantizer before being stored."""
 
-    def __init__(self, key_bits, center, val_bits=None, n_probes=128, seed=SEED):
+    def __init__(self, key_bits, center, val_bits=None, n_probes=128, seed=SEED,
+                 inject_alpha=0.0):
         from turboquantdc.generation_layers import _CompressedLayer
         self._CL = _CompressedLayer
         self.key_bits, self.center, self.val_bits = key_bits, center, val_bits
         self.n_probes, self.seed = n_probes, seed
+        # Synthetic shared-component injection (causal test of the mechanism).
+        # A fixed random direction is ADDED to every key before quantization and
+        # SUBTRACTED after dequantization. In exact arithmetic that is a no-op,
+        # so any damage is caused purely by the quantizer having to represent a
+        # large shared component -- the model itself is untouched.
+        self.inject_alpha = inject_alpha
+        self._mu = {}
         self.layers = {}
         self.stats = {}
         self._probes = {}
@@ -96,8 +104,21 @@ class KVCompressor:
 
     def transform(self, k, v, layer_idx):
         lay = self._layer(layer_idx)
-        kq, vq = lay.update(k.clone(), v.clone())
+        k_in = k
+        mu = None
+        if self.inject_alpha:
+            key = (layer_idx, k.shape[1], k.shape[-1])
+            if key not in self._mu:
+                g = torch.Generator(device="cpu").manual_seed(self.seed + 977 * layer_idx)
+                d = torch.randn(1, k.shape[1], 1, k.shape[-1], generator=g)
+                self._mu[key] = (d / d.norm(dim=-1, keepdim=True))
+            scale = k.float().norm(dim=-1).mean()
+            mu = (self._mu[key].to(k.device) * scale * self.inject_alpha).to(k.dtype)
+            k_in = k + mu
+        kq, vq = lay.update(k_in.clone(), v.clone())
         kq = kq.to(k.dtype)
+        if mu is not None:
+            kq = kq - mu
         with torch.no_grad():
             vc, lr, sr = proxy_metrics(k[0].float(), kq[0].float(),
                                        self.probes(k.shape[-1], k.device))
@@ -202,6 +223,8 @@ def main():
     ap.add_argument("--tokens", type=int, default=4096)
     ap.add_argument("--quant-values", action="store_true")
     ap.add_argument("--out", default=None)
+    ap.add_argument("--inject", type=float, nargs="+", default=[0.0],
+                    help="synthetic shared-component magnitudes, relative to mean key norm")
     a = ap.parse_args()
     name = a.name or a.model.rstrip("/").split("/")[-1]
 
@@ -227,17 +250,20 @@ def main():
 
     vb = None
     for bits in a.bits:
+      for alpha in a.inject:
         for center in (False, True):
             if a.quant_values:
                 vb = bits
-            comp = KVCompressor(key_bits=bits, center=center, val_bits=vb)
+            comp = KVCompressor(key_bits=bits, center=center, val_bits=vb,
+                                inject_alpha=alpha)
             t0 = time.time()
             ppl, _ = sliding_ppl(model, ids, comp)
             s = comp.summary()
-            rows.append(dict(config=f"{bits}bit{'+center' if center else ''}",
-                             bits=bits, center=center, ppl=ppl,
+            rows.append(dict(config=f"{bits}bit{'+center' if center else ''}"
+                                    + (f"+inject{alpha}" if alpha else ""),
+                             bits=bits, center=center, inject=alpha, ppl=ppl,
                              delta=ppl - base, ratio=ppl / base, **s))
-            print(f"[{bits}bit center={center}] ppl={ppl:.4f} "
+            print(f"[{bits}bit center={center} inject={alpha}] ppl={ppl:.4f} "
                   f"(x{ppl/base:.2f}) vec_cos={s['vec_cos']:.4f} "
                   f"logit_r={s['logit_r']:.4f} (min {s['logit_r_min']:.4f}) "
                   f"{time.time()-t0:.0f}s", flush=True)
