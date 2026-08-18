@@ -68,19 +68,40 @@ heads and are likewise unaffected. Every catastrophic configuration we found, at
 any bit-width, belongs to Qwen2.5. Qwen3 is intermediate and Qwen3.5 — the
 architecture of the newly released Qwen3.8 — is immune.
 
-Finally, we ran the compressor end-to-end across **72 configurations spanning 13
-models and 6 architecture families**, recording true perplexity alongside the cheap
-reconstruction metrics that this field validates compressors on. Per-vector cosine
-similarity does not predict damage (Pearson −0.14) and cannot separate working from
-broken configurations at any threshold: 25% of broken configurations pass a 0.995
-cosine criterion, including one that scores 0.9986 while perplexity rises 376×, and
-a configuration scoring 0.9904 is rejected while costing only 7%. A different,
-equally cheap statistic — the worst-layer correlation of the attention logits the
-reconstructed keys produce — separates all 72 cells with zero errors, and a
-threshold fitted on Qwen2.5 alone misclassifies 1 of 62 held-out cells on eleven
-unseen models where cosine similarity misclassifies 23. We also quantify the
-correction's value: 2-bit centered beats 6-bit uncentered, so mean removal is worth
-roughly four bits of precision.
+We then ran the compressor end-to-end across 150 configurations spanning 26
+models and thirteen architecture lineages, recording true perplexity alongside
+the cheap reconstruction metrics this field validates compressors on.
+Per-vector cosine similarity is *uncorrelated* with real damage (Pearson
+−0.003 over 176 cells): a quarter of broken configurations pass a 0.995
+criterion, including ones at ×376 and ×2,929 the baseline perplexity, while
+configurations costing 7% are rejected. The worst-layer correlation of the
+attention logits the reconstructed keys produce is strictly better — it catches
+every catastrophic cell and transfers to unseen architectures — but it is not
+sufficient either, and we show why by manufacturing failures that no
+reconstruction-side statistic can see.
+
+That failure has a structural cause and a remedy. Damage factorizes into the
+score-space noise a compressor injects and the model's sensitivity to it;
+every reconstruction metric measures only the first factor. Measuring the
+second directly — perturbing cached keys with mean-free isotropic Gaussian
+noise at several magnitudes, no quantizer involved, five to eleven forward
+passes per model — yields a per-model **noise-response curve**. Evaluating a
+model's own curve at a quantizer configuration's measured score-space noise
+predicts that configuration's perplexity damage with **R² = 0.969 across 96
+configurations and 13 models, over a damage range from ×0.99 to ×1,348**, with
+median error ×1.01 and **zero dangerous misses at a ×5 catastrophe gate**. A
+held-out test at bit-widths absent from the study (5, 6 and 8 bits) predicts
+within ×1.5. The curve is calibrated on unstructured Gaussian noise and tested
+on structured quantizer error, so the amount of score-space noise — not its
+structure — is what determines damage. This explains why no universal proxy
+threshold can exist (the map from proxy to damage is a model property), and it
+converts compressor certification into a cheap procedure. Its limits are
+stated: it cannot resolve a 2% tax from an 8% one, one-bit quantization is
+systematically under-predicted, and the curve is not predictable from the
+key-mean structure, so both factors must be measured.
+
+We also quantify the correction's value: 2-bit centered beats 6-bit
+uncentered, so mean removal is worth roughly four bits of precision.
 
 This paper documents the failure mode, experimental methodology, proposed
 mechanism, correction, metric validation, and limitations, and provides
@@ -137,7 +158,14 @@ Qwen2.5-14B-Instruct?
 8. *(added 2026-08-18)* establish the mechanism **causally**: injecting a
    synthetic shared key component into an immune model reproduces the entire
    failure dose-dependently, and centering neutralizes every dose (§6.18); and
-9. *(added 2026-08-18)* document independent concurrent observations of the
+9. *(added 2026-08-18)* **establish a damage law**: quantization damage is a
+   model-specific function of one cheap scalar, calibrated by injecting
+   Gaussian noise into cached keys with no quantizer involved, predicting
+   96 configurations across 13 models with R² 0.969 over a ×1,348 damage
+   range and zero dangerous misses at a catastrophe gate — which explains
+   why contributions 6's proxy could not have sufficed alone, and yields a
+   cheap certification procedure with explicitly measured limits (§6.22); and
+10. *(added 2026-08-18)* document independent concurrent observations of the
    same failure, family-specificity, and metric blindness by unrelated parties
    in different codebases (§2.6), and position the work against prior art found
    in an online search: centering-before-VQ exists (NSNQuant, classical
