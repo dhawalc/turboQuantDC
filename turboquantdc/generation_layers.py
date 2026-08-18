@@ -26,6 +26,36 @@ from .generation_strategy import compute_layer_key_bits, compute_anchor_schedule
 # ---------------------------------------------------------------------------
 
 
+def _pack_bits(t: torch.Tensor, bits: int) -> torch.Tensor:
+    """Pack small non-negative integers along the LAST dim into ``uint8``.
+
+    A ``b``-bit quantizer index stored in an int64 wastes 32x the space it
+    needs, which is enough to turn a 6x compressor into a 6x expander. Packing
+    the *last* (head-dimension) axis is what makes this safe to retrofit: every
+    sequence-dimension slice, ``cat`` and ``index_select`` in the cache keeps
+    working untouched, because none of them touch the packed axis.
+    """
+    per = 8 // bits
+    *lead, d = t.shape
+    pad = (-d) % per
+    if pad:
+        t = torch.cat([t, t.new_zeros(*lead, pad)], dim=-1)
+    t = t.to(torch.uint8).reshape(*lead, (d + pad) // per, per)
+    out = torch.zeros(t.shape[:-1], dtype=torch.uint8, device=t.device)
+    for i in range(per):
+        out |= t[..., i] << (i * bits)
+    return out
+
+
+def _unpack_bits(p: torch.Tensor, bits: int, d: int) -> torch.Tensor:
+    """Inverse of :func:`_pack_bits`; ``d`` is the original last-dim size."""
+    per = 8 // bits
+    mask = (1 << bits) - 1
+    parts = [((p >> (i * bits)) & mask) for i in range(per)]
+    out = torch.stack(parts, dim=-1).reshape(*p.shape[:-1], p.shape[-1] * per)
+    return out[..., :d]
+
+
 class _CompressedLayer:
     """Single layer's compressed KV cache with residual sign correction.
 
@@ -368,6 +398,19 @@ class _CompressedLayer:
         Returns:
             Reconstructed tensor of shape ``[batch, heads, seq, d]``.
         """
+        # Storage is bit-packed along the head dimension (see _pack_bits);
+        # unpack before anything reads the shape or does arithmetic.
+        d_model = self._head_dim if self._head_dim is not None else None
+        if indices.dtype == torch.uint8 and d_model is not None:
+            indices = _unpack_bits(indices, codebook.bits, d_model)
+        if indices.dtype != torch.long:
+            indices = indices.long()
+        if res_signs is not None and res_signs.dtype == torch.uint8 and d_model:
+            res_signs = _unpack_bits(res_signs, 1, d_model).float() * 2.0 - 1.0
+        elif res_signs is not None and res_signs.dtype not in (
+                torch.float16, torch.float32, torch.bfloat16):
+            res_signs = res_signs.float()
+
         batch, heads, seq, d = indices.shape
         flat_idx = indices.reshape(-1, d)
         flat_norms = norms.reshape(-1)
@@ -465,20 +508,21 @@ class _CompressedLayer:
             self._key_running_count = new_n
             # Center using running mean (broadcast over seq dim)
             keys_to_quantize = key_states.float() - self._key_running_mean
-            # Store the mean snapshot used for this chunk (for dequantization)
-            chunk_mean = self._key_running_mean.expand(
-                key_states.shape[0], key_states.shape[1], new_seq, key_states.shape[3]
-            ).clone()
+            # Store ONLY the (B, H, 1, D) mean snapshot for this chunk. The mean
+            # is constant across the chunk's tokens, so materializing it to full
+            # sequence length costs as much as the uncompressed keys and would
+            # cancel the compression entirely. Expanded lazily by _chunk_mean().
+            chunk_mean = self._key_running_mean
         else:
-            chunk_mean = torch.zeros_like(key_states)
+            chunk_mean = torch.zeros_like(key_states[:, :, :1, :], dtype=torch.float32)
 
         # Compress keys with residual signs
         k_idx, k_norms, k_rsigns, k_rscale = self._quantize_vectors(
             keys_to_quantize, self._key_codebook,
         )
-        self._key_indices.append(k_idx)
+        self._key_indices.append(_pack_bits(k_idx, self.key_bits))
         self._key_norms.append(k_norms)
-        self._key_res_signs.append(k_rsigns)
+        self._key_res_signs.append(_pack_bits((k_rsigns > 0).to(torch.uint8), 1))
         self._key_res_scales.append(k_rscale)
         self._key_means.append(chunk_mean.to(key_states.dtype))
 
@@ -486,12 +530,15 @@ class _CompressedLayer:
         v_idx, v_norms, _, _ = self._quantize_vectors(
             value_states, self._val_codebook,
         )
-        self._val_indices.append(v_idx)
+        self._val_indices.append(_pack_bits(v_idx, self.val_bits))
         self._val_norms.append(v_norms)
 
         # Store raw FP16 for precision window
-        self._raw_keys.append(key_states.detach())
-        self._raw_vals.append(value_states.detach())
+        # With no FP16 window there is nothing to serve from raw tensors, and
+        # retaining them costs exactly as much as an uncompressed cache.
+        if self.fp16_window > 0:
+            self._raw_keys.append(key_states.detach())
+            self._raw_vals.append(value_states.detach())
 
         # Fix 2: Trim raw FP16 storage to prevent memory leak.
         # Concatenate and keep only last fp16_window tokens when list grows
@@ -538,20 +585,19 @@ class _CompressedLayer:
                 ) / new_n
             self._key_running_count = new_n
             keys_to_quantize = key_states.float() - self._key_running_mean
-            chunk_mean = self._key_running_mean.expand(
-                key_states.shape[0], key_states.shape[1], new_seq, key_states.shape[3]
-            ).clone()
+            # Compact (B, H, 1, D) snapshot; see _chunk_mean().
+            chunk_mean = self._key_running_mean
         else:
-            chunk_mean = torch.zeros_like(key_states)
+            chunk_mean = torch.zeros_like(key_states[:, :, :1, :], dtype=torch.float32)
 
         # Compress keys
         k_idx, k_norms, k_rsigns, k_rscale = self._quantize_vectors(
             keys_to_quantize, self._key_codebook,
         )
         # Store compressed data on CPU to minimize GPU memory
-        self._key_indices.append(k_idx.cpu())
+        self._key_indices.append(_pack_bits(k_idx, self.key_bits).cpu())
         self._key_norms.append(k_norms.cpu())
-        self._key_res_signs.append(k_rsigns.cpu())
+        self._key_res_signs.append(_pack_bits((k_rsigns > 0).to(torch.uint8), 1).cpu())
         self._key_res_scales.append(k_rscale.cpu())
         self._key_means.append(chunk_mean.to(key_states.dtype).cpu())
 
@@ -559,12 +605,15 @@ class _CompressedLayer:
         v_idx, v_norms, _, _ = self._quantize_vectors(
             value_states, self._val_codebook,
         )
-        self._val_indices.append(v_idx.cpu())
+        self._val_indices.append(_pack_bits(v_idx, self.val_bits).cpu())
         self._val_norms.append(v_norms.cpu())
 
         # Store raw FP16 for precision window (keep on GPU for fast access)
-        self._raw_keys.append(key_states.detach())
-        self._raw_vals.append(value_states.detach())
+        # With no FP16 window there is nothing to serve from raw tensors, and
+        # retaining them costs exactly as much as an uncompressed cache.
+        if self.fp16_window > 0:
+            self._raw_keys.append(key_states.detach())
+            self._raw_vals.append(value_states.detach())
 
         if self.fp16_window > 0 and self._seq_len > self.fp16_window * 2:
             all_rk = torch.cat(self._raw_keys, dim=2)
@@ -618,7 +667,7 @@ class _CompressedLayer:
                 new_k_norms_parts.append(self._key_norms[i][:, :, start_in_chunk:])
                 new_k_rsigns_parts.append(self._key_res_signs[i][:, :, start_in_chunk:, :])
                 new_k_rscales_parts.append(self._key_res_scales[i][:, :, start_in_chunk:])
-                new_k_means_parts.append(self._key_means[i][:, :, start_in_chunk:, :])
+                new_k_means_parts.append(self._chunk_mean(i, start_in_chunk))
                 new_v_idx_parts.append(self._val_indices[i][:, :, start_in_chunk:, :])
                 new_v_norms_parts.append(self._val_norms[i][:, :, start_in_chunk:])
                 seen = chunk_end
@@ -710,6 +759,19 @@ class _CompressedLayer:
         Returns:
             Reconstructed tensor of shape ``[batch, heads, seq, d]``.
         """
+        # Storage is bit-packed along the head dimension (see _pack_bits);
+        # unpack before anything reads the shape or does arithmetic.
+        d_model = self._head_dim if self._head_dim is not None else None
+        if indices.dtype == torch.uint8 and d_model is not None:
+            indices = _unpack_bits(indices, codebook.bits, d_model)
+        if indices.dtype != torch.long:
+            indices = indices.long()
+        if res_signs is not None and res_signs.dtype == torch.uint8 and d_model:
+            res_signs = _unpack_bits(res_signs, 1, d_model).float() * 2.0 - 1.0
+        elif res_signs is not None and res_signs.dtype not in (
+                torch.float16, torch.float32, torch.bfloat16):
+            res_signs = res_signs.float()
+
         batch, heads, seq, d = indices.shape
         flat_idx = indices.reshape(-1, d)
         flat_norms = norms.reshape(-1)
@@ -804,7 +866,7 @@ class _CompressedLayer:
         all_k_norms = torch.cat(self._key_norms, dim=2)
         all_k_rsigns = torch.cat(self._key_res_signs, dim=2) if self._key_res_signs else None
         all_k_rscales = torch.cat(self._key_res_scales, dim=2) if self._key_res_scales else None
-        all_k_means = torch.cat(self._key_means, dim=2) if self._key_means else None
+        all_k_means = self._all_chunk_means()
         
         all_v_idx = torch.cat(self._val_indices, dim=2)
         all_v_norms = torch.cat(self._val_norms, dim=2)
@@ -894,6 +956,29 @@ class _CompressedLayer:
         self._dequant_val_cache = None
         self._dequant_len = 0
 
+    def _chunk_mean(self, i: int, start: int = 0) -> torch.Tensor:
+        """Chunk ``i``'s stored key mean, as a (B, H, chunk_len - start, D) view.
+
+        Means are stored compactly as (B, H, 1, D) because they are constant
+        across a chunk's tokens; this expands them to token resolution without
+        allocating (``expand`` yields a stride-0 view). Tensors that are already
+        at token resolution -- e.g. after ``crop`` merges chunks -- are passed
+        through unchanged, so both layouts are safe.
+        """
+        m = self._key_means[i]
+        n_tok = self._key_indices[i].shape[2]
+        if m.shape[2] == 1 and n_tok != 1:
+            m = m.expand(m.shape[0], m.shape[1], n_tok, m.shape[3])
+        return m[:, :, start:, :] if start else m
+
+    def _all_chunk_means(self) -> Optional[torch.Tensor]:
+        """All chunk means concatenated to (B, H, T, D). Materializes; call only
+        on the dequantization path, never for storage."""
+        if not self._key_means:
+            return None
+        return torch.cat([self._chunk_mean(i) for i in range(len(self._key_means))],
+                         dim=2)
+
     def reorder(self, beam_idx: torch.LongTensor) -> None:
         """Reorder cache entries along the batch dimension for beam search."""
         self._key_indices = [t.index_select(0, beam_idx) for t in self._key_indices]
@@ -923,7 +1008,7 @@ class _CompressedLayer:
             all_k_norms = torch.cat(self._key_norms, dim=2)[:, :, :max_length]
             all_k_rsigns = torch.cat(self._key_res_signs, dim=2)[:, :, :max_length]
             all_k_rscales = torch.cat(self._key_res_scales, dim=2)[:, :, :max_length]
-            all_k_means = torch.cat(self._key_means, dim=2)[:, :, :max_length]
+            all_k_means = self._all_chunk_means()[:, :, :max_length]
             all_v_idx = torch.cat(self._val_indices, dim=2)[:, :, :max_length]
             all_v_norms = torch.cat(self._val_norms, dim=2)[:, :, :max_length]
             raw_keys = torch.cat(self._raw_keys, dim=2)[:, :, :max_length]
