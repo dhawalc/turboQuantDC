@@ -47,6 +47,15 @@ scanned retains, is the source of the shared component — was tested and refute
 zeroing it removes the extreme tail of mean-dominated heads but leaves the bulk
 shared component unchanged.
 
+Repeating the measurement on Qwen3-8B, which is bias-free and applies QK-Norm,
+shows the bulk shared component is **not** an artefact of the older architecture:
+51.0% of key energy against Qwen2.5-7B's 52.7%, mean cosine 0.702 against 0.715.
+What the newer architecture removes is the tail — worst-head ratio falls from 59.1
+to 7.0 — and quantizer damage tracks that tail. Centering therefore remains
+necessary on current models rather than being a legacy fix, and Qwen3.8-27B, whose
+published weights we verified share the same bias-free QK-Norm structure, is
+predicted (untested) to behave likewise.
+
 Critically, the failure is **not uniform across the Qwen family**. In a separate
 sweep across three model sizes, Qwen2.5-3B (2 KV heads) and Qwen2.5-7B (4 KV heads)
 both failed catastrophically without mean removal, while Qwen2.5-14B (8 KV heads)
@@ -724,6 +733,124 @@ end-to-end perplexity. It shows how the discriminative signal is lost at each
 layer; it does not by itself prove that this compounds into the PPL 9,410 of
 §3.1. The probe directions are random rather than the model's real queries.
 
+### 6.10 The contrast case: a modern bias-free model has the *same* shared component
+
+*(added 2026-08-18)*
+
+§6.6 and §6.8 together invite a comfortable conclusion — that the shared component
+is a Qwen2.5 artefact and that current architectures, having dropped the key bias
+for QK-Norm, are safe. **They are not.** We repeated §6.7 and §6.9 verbatim on
+Qwen3-8B, which is bias-free and applies QK-Norm, using the identical corpus,
+token count, probe set, seed and quantizer configuration:
+
+| Statistic | Qwen2.5-7B (bias, no QK-Norm) | Qwen3-8B (no bias, QK-Norm) |
+|---|---:|---:|
+| **mean cos(k_t, μ_h)** | **0.7150** | **0.7019** |
+| **shared-mean energy fraction** | **0.5267** | **0.5104** |
+| ρ median | 0.978 | 0.992 |
+| heads with ρ > 1 | 43.8% | 49.0% |
+| ρ mean | 2.456 | 1.219 |
+| **ρ max** | **59.116** | **7.011** |
+| **heads with ρ > 3** | **8.9%** | **2.8%** |
+
+Source: [`results/quantizer_loop_qwen3_8b.json`](experiments/results/quantizer_loop_qwen3_8b.json)
+
+**The bulk shared component is not architecture-specific.** Half of the average
+key's energy is a softmax-invisible shared component in the modern bias-free model
+too — 51.0% against 52.7%, and mean cosine 0.702 against 0.715. Dropping the key
+bias did not remove it, exactly as §6.8's within-model ablation predicted.
+
+What the architecture change *did* remove is the **tail**: worst-head ρ falls from
+59.1 to 7.0, and the fraction of severely mean-dominated heads from 8.9% to 2.8%.
+This matches the within-model ablation almost exactly (ρ max 59.1 → 1.7 when the
+bias is zeroed) and identifies the bias as a tail-generating mechanism, not the
+source of the bulk.
+
+Quantizer damage follows the tail rather than the bulk:
+
+| | Qwen2.5-7B | Qwen3-8B |
+|---|---:|---:|
+| Layer 0, uncentered logit correlation | **0.5488** | **0.8669** |
+| Layer 0, centered | 0.9934 | 0.9909 |
+| Layer 0, uncentered vector cosine | 0.9950 | 0.9971 |
+| Layer 0, uncentered spread ratio | 1.746 | 1.095 |
+| All layers, uncentered logit correlation | 0.9619 | 0.9836 |
+| All layers, centered | 0.9931 | 0.9932 |
+
+Three things follow, and the first is the practically important one:
+
+1. **Centering is still required on current models.** Qwen3-8B's layer 0 loses
+   measurable logit fidelity uncentered (0.8669) and recovers to 0.9909 with
+   centering, at identical bit-width. The correction is not a legacy patch for a
+   superseded model generation.
+2. **The metric dissociation persists.** Qwen3-8B's layer 0 scores 0.9971 vector
+   cosine in the arm whose logit correlation is 0.8669. A reconstruction metric
+   still cannot see the damage.
+3. **Severity tracks the tail, not the bulk.** The two models have near-identical
+   bulk shared components but 8× different worst-head ρ and correspondingly
+   different damage. On `n = 2` models this is an inference, not a law, but it
+   sharpens §4.2: the quantity that predicts catastrophe is the *extreme* of the
+   ρ distribution, not its centre.
+
+**Scope.** Qwen3-8B is a *proxy* for the current architecture, not the model of
+§6.11: it is dense with 8 KV heads and head_dim 128, whereas Qwen3.8-27B is a
+hybrid stack with 4 KV heads and head_dim 256. It is also still a Qwen, so the
+non-Qwen ablation remains open. We have not measured Qwen3-8B's end-to-end
+perplexity under 3-bit compression, so "less per-layer damage" must not be read as
+"does not fail".
+
+### 6.11 Qwen3.8-27B: structural verification without downloading it
+
+*(added 2026-08-18)*
+
+Qwen3.8-27B was released in early August 2026 and is the newest model in scope for
+this question. It could not be run here — ollama 0.20.0 refuses the manifest as too
+new, the transformers GGUF loader does not support the architecture, and 27B
+exceeds this host's RAM ceiling regardless (§9, Limitation 11). We instead read its
+published weights directly over HTTP range requests, fetching the safetensors
+shard headers and then only the exact byte ranges of the tensors of interest — a
+few kilobytes in total rather than ~54 GB.
+
+| Property | Qwen2.5-7B | Qwen3.8-27B |
+|---|---|---|
+| `self_attn.k_proj.bias` | **present** (‖b_h‖ to 920) | **absent** |
+| `q_norm` / `k_norm` (QK-Norm) | absent | **present**, 17 attention layers |
+| Attention layers | 28 of 28 | 17 of 64 (indices 0, 3, 7, …, 63) |
+| Q / KV heads | 28 / 4 | 24 / 4 |
+| head_dim | 128 | 256 |
+
+Two verification notes matter here. The repository index lists 166 `.bias`
+tensors, but **every one belongs to the vision tower** (`model.visual.*`); vision
+transformers conventionally carry a QKV bias. The language model has none. This is
+the identical false positive the local GGUF scan produced in §6.6, caught the same
+way. Separately, an LLM-summarised read of the config reported "no QK-Norm",
+which the tensor listing contradicts — the norm is structural (`q_norm`/`k_norm`
+weight tensors) rather than a config flag. Both claims above come from the tensor
+manifest, not from a summary of it.
+
+We also read the QK-Norm gain vectors themselves, since a learned per-channel gain
+applied to every key is a candidate for reintroducing a shared direction. It does
+not: the gains are diffuse, with a participation ratio of 150–221 effective
+channels out of 256 (0.59–0.86 of the head dimension), rising through depth.
+
+| Tensor | mean γ | std | min | max | effective channels / 256 |
+|---|---:|---:|---:|---:|---:|
+| `k_norm` L3 | 0.220 | 0.135 | −0.574 | 0.754 | 150.4 (0.587) |
+| `k_norm` L11 | 0.350 | 0.129 | −0.262 | 0.711 | 220.3 (0.861) |
+| `k_norm` L23 | 0.436 | 0.179 | −0.965 | 1.203 | 188.8 (0.737) |
+| `q_norm` L11 | 0.361 | 0.065 | −0.135 | 0.527 | 238.8 (0.933) |
+
+Source: [`results/qwen38_qknorm_gains.json`](experiments/results/qwen38_qknorm_gains.json),
+read via [`experiments/remote_safetensors.py`](experiments/remote_safetensors.py)
+
+Qwen3.8-27B therefore shares the architectural properties of the Qwen3-8B proxy
+measured in §6.10 — no key bias, QK-Norm present — and adds no new
+shared-direction structure through its norm gains. Since §6.10 shows those
+properties do **not** eliminate the bulk shared component, the prediction is that
+Qwen3.8-27B also carries one and also requires centering. **That prediction is
+untested**, and §6.10's caveats about KV-head count and head dimension apply with
+more force here, since Qwen3.8-27B differs from the proxy on both.
+
 ---
 
 ## 7. Ablations
@@ -755,7 +882,13 @@ contrast: if Gemma 3, Gemma 4, or Qwen 3 shows a comparably large shared key
 component (cos ≈ 0.7, energy fraction ≈ 0.5) while quantizing cleanly, then the
 shared component is not sufficient to cause the failure and §4.2 is incomplete.
 
-Two candidates are decisive and available locally as GGUF blobs:
+*Partially completed 2026-08-18: §6.10 measured Qwen3-8B, a bias-free QK-Norm
+contrast, and found the bulk shared component unchanged. What that run did not
+settle is whether such a model **fails end-to-end** — no perplexity was measured.
+The highest-value next step is therefore a 3-bit PPL run on Qwen3-8B with centering
+on and off, which needs no new model.*
+
+Two further candidates would be decisive and are available locally as GGUF blobs:
 
 - **gemma4** — 2 KV heads, *fewer* than the Qwen2.5-7B that failed, but no key
   bias and QK-Norm present. It separates the KV-head-count correlation (§6.3)
@@ -815,7 +948,13 @@ architectures that loader supports (§9, Limitation 11).
   centered (§6.9).
 - Qwen2.5 is the **only** family among seven locally scanned models that adds a
   learned bias to the key projection; every newer architecture scanned (Qwen3,
-  Qwen3.5/3.6, Gemma 3, Gemma 4) replaced it with QK-Norm (§6.6).
+  Qwen3.5/3.6, Gemma 3, Gemma 4) replaced it with QK-Norm (§6.6), and the same
+  holds for Qwen3.8-27B read directly from its published weights (§6.11).
+- **That architectural change does not remove the shared component.** A bias-free
+  QK-Norm model carries essentially the same bulk shared component (51.0% vs
+  52.7%) and still loses logit fidelity uncentered at layer 0 (0.8669 → 0.9909
+  with centering), while its vector cosine stays at 0.9971 in both arms (§6.10).
+  What the change removes is the extreme tail (worst-head ρ 59.1 → 7.0).
 
 ### 8.2 What remains a hypothesis
 
@@ -858,6 +997,16 @@ There is a corollary for benchmarking practice. A method evaluated only on model
 with 8+ KV heads — which describes much of the Llama-centric low-bit KV literature
 — would not have surfaced this failure at all. Architecture coverage in KV-cache
 quantization benchmarks appears to be systematically too narrow.
+
+**On whether this is a historical finding.** An earlier reading of §6.6 suggested
+it might be: the vulnerable family is Qwen2.5, and every newer architecture dropped
+the key bias. §6.10 tested that and it is wrong. The bulk shared component survives
+the architecture change intact, so the correction is still load-bearing on current
+models — and Qwen3.8-27B, released this month, has the same structure (§6.11). The
+refined claim is narrower and more useful than either extreme: *the shared
+component is ubiquitous and always worth removing; the catastrophic tail is what
+varies across architectures, and Qwen2.5's key bias is one mechanism that produces
+it.*
 
 ### 8.4 What cannot yet be claimed
 
@@ -940,15 +1089,28 @@ relative logit structure that generation depends on.
 
 *Added 2026-08-18, covering §6.6–§6.9:*
 
-11. **No activation measurement on a model that does not fail.** §6.7–§6.9 are all
-    Qwen2.5-7B. The contrast case is missing for two compounding reasons: the
-    transformers GGUF loader materializes a full dequantized state dict in RAM,
-    which caps this host near 8B parameters (a 12B attempt drove the machine into
-    23 GB of swap and was abandoned), and the two most decisive candidates —
-    `gemma4` (2 KV heads, bias-free) and `qwen35`/qwen3.6 (4 KV heads, bias-free)
-    — are not among the architectures that loader supports. Until this gap is
-    closed, §6.7's numbers show the shared component **exists** on a failing model,
-    not that its absence is what makes other models safe.
+11. **Partially addressed 2026-08-18; still open in its strongest form.** §6.10
+    adds Qwen3-8B as a bias-free QK-Norm contrast, which is what showed the bulk
+    shared component is architecture-independent. Three gaps remain: (a) we never
+    measured Qwen3-8B's **end-to-end perplexity** under 3-bit compression, so we
+    know its per-layer damage is milder but not whether it fails; (b) Qwen3-8B is
+    still a Qwen — the non-Qwen ablation (item 4 of §7) is untouched at the
+    activation level; (c) the two most decisive models remain unrunnable here.
+    `gemma4` (2 KV heads, bias-free — *fewer* KV heads than the model that failed)
+    and `qwen35`/`qwen3.6` (4 KV heads, bias-free) are local but unsupported by the
+    transformers GGUF loader, and Qwen3.8-27B additionally exceeds this host: that
+    loader materializes a full dequantized state dict in RAM, capping the machine
+    near 8B parameters, and ollama 0.20.0 rejects the Qwen3.8 manifest as
+    requiring a newer release.
+16. **Qwen3.8-27B is verified structurally but never executed.** §6.11's claims come
+    from its published tensor manifest and a few kilobytes of range-fetched weight
+    data. No activation, quantizer or perplexity measurement was made on it, and
+    the Qwen3-8B proxy differs from it on KV-head count (8 vs 4), head dimension
+    (128 vs 256) and stack type (dense vs hybrid). The §6.11 prediction is a
+    prediction.
+17. **`n = 2` for the cross-architecture comparison.** §6.10's inference that
+    severity tracks the tail of the ρ distribution rather than its centre rests on
+    two models, one run each.
 12. **The shared component's origin is only partly explained.** §6.8 shows it is
     not the `k_proj` bias. The residual attribution — `W_k · E[x]`, i.e. the
     residual stream's own persistent mean — is inferred by elimination, not

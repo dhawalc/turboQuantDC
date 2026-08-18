@@ -32,9 +32,9 @@ sys.path.insert(0, SCRATCH)
 sys.path.insert(0, REPO)
 from measure_key_mean_gguf import find_models, build_corpus, extract_layer_keys
 
-TAG = "qwen2.5:7b"
-TOKENS = 1024
-KEYS_NPZ = os.path.join(SCRATCH, "qwen25_7b_keys.npz")
+TAG = os.environ.get("TQ_MODEL", "qwen2.5:7b")
+TOKENS = int(os.environ.get("TQ_TOKENS", "1024"))
+KEYS_NPZ = os.path.join(SCRATCH, f"keys_{TAG.replace(':','_')}.npz")
 N_PROBES = 256
 SEED = 42
 
@@ -129,11 +129,31 @@ def main():
               f"nocenter={rec['nocenter_vec_cos']:.4f} "
               f"center={rec['center_vec_cos']:.4f}", flush=True)
 
+    # rho / shared-component stats from the same keys -- one model load, both results
+    from measure_key_mean_gguf import head_stats as _hs
+    allr, allc, allf = [], [], []
+    for name in layers:
+        K = torch.from_numpy(z[name])
+        for h in _hs(K):
+            allr.append(h["rho"]); allc.append(h["cos_to_mean"])
+            allf.append(h["mean_energy_frac"])
+    ss = sorted(allr)
+    rho_stats = dict(rho_mean=float(np.mean(allr)), rho_median=float(ss[len(ss)//2]),
+                     rho_p90=float(ss[int(0.9*(len(ss)-1))]), rho_max=float(max(allr)),
+                     cos_to_mean_mean=float(np.mean(allc)),
+                     mean_energy_frac_mean=float(np.mean(allf)),
+                     frac_heads_rho_gt_1=float(np.mean([r > 1 for r in allr])),
+                     frac_heads_rho_gt_3=float(np.mean([r > 3 for r in allr])))
+    print("\n=== SHARED-COMPONENT (rho) ===")
+    for k, v in rho_stats.items():
+        print(f"  {k:26s} {v:.4f}")
+
     agg = {k: float(np.mean([r[k] for r in rows]))
            for k in rows[0] if k != "layer"}
     out = {"model": TAG, "tokens": TOKENS, "key_bits": 3, "n_probes": N_PROBES,
-           "device": dev, "aggregate": agg, "per_layer": rows}
-    p = os.path.join(SCRATCH, "quantizer_loop_results.json")
+           "device": dev, "aggregate": agg, "rho_stats": rho_stats, "per_layer": rows}
+    p = os.path.join(SCRATCH, "results", f"quantizer_loop_{TAG.replace(':','_')}.json")
+    os.makedirs(os.path.dirname(p), exist_ok=True)
     json.dump(out, open(p, "w"), indent=1)
     print("\n=== AGGREGATE over all layers/heads ===")
     for k, v in agg.items():
