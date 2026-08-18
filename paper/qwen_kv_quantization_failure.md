@@ -1319,6 +1319,55 @@ noted as an open observation: at 1 bit, spending the codebook on the deviation
 around a small mean is evidently not always the right trade. We have not
 investigated further.
 
+### 6.20 Lineage: the pathology was born in Qwen2
+
+*(added 2026-08-18)*
+
+§6.12 established a generational arc forward from Qwen2.5. Running the same
+harness *backward* through the lineage answers where the pathology began.
+Worst-case uncentered damage and the corresponding worst-layer logit
+correlation, keys only:
+
+| Generation (release) | Model | KV heads | 2-bit | 3-bit | 4-bit | worst lr_min | centered (worst) |
+|---|---|---:|---:|---:|---:|---:|---:|
+| Qwen1.5 (Feb 2024) | 1.8B | 16 (MHA) | ×1.03 | ×1.01 | ×1.00 | 0.930 | ×1.04 |
+| **Qwen2 (Jun 2024)** | 1.5B | 2 | **×1,085** | **×594** | **×138** | 0.221 | ×1.03 |
+| **Qwen2 (Jun 2024)** | 7B | 4 | **×916** | **×1,048** | **×53** | 0.381 | ×1.04 |
+| Qwen2.5 (Sep 2024) | 1.5B | 2 | ×1,348 | ×580 | ×376 | 0.258 | ×1.07 |
+| Qwen2.5 (Sep 2024) | 7B | 4 | — | ×1,416 | ×125 | 0.537 | ×1.03 |
+| Qwen3 (Apr 2025) | 1.7B | 8 | ×21.1 | ×1.95 | ×1.05 | 0.806 | ×1.41 |
+| Qwen3.5 | 0.8B | 2 | ×1.01 | ×1.00 | ×1.00 | 0.887 | ×1.00 |
+
+Source: [`results/ppl_qwen1.5-1.8b.json`](experiments/results/ppl_qwen1.5-1.8b.json),
+[`results/ppl_qwen2-1.5b.json`](experiments/results/ppl_qwen2-1.5b.json),
+[`results/ppl_qwen2-7b.json`](experiments/results/ppl_qwen2-7b.json)
+
+Four conclusions:
+
+1. **The pathology appears abruptly at the Qwen1.5 → Qwen2 transition** and at
+   full severity immediately: Qwen2 is not an intermediate case, it is as broken
+   as Qwen2.5 (×1,048 vs ×1,416 at 3 bits on the 7B models). The arc over five
+   generations is immune → catastrophic → catastrophic → intermediate → immune.
+2. **This independently re-refutes the k_proj-bias hypothesis (§6.8) from the
+   other direction.** Qwen1.5 *carries the same QKV bias* that Qwen2 and Qwen2.5
+   do — and is completely immune. The bias is present on both sides of the
+   discontinuity; the pathology is on one side only.
+3. **The KV-head refutation of §6.14 survives another confound check.** The
+   Qwen1.5 → Qwen2 transition did introduce GQA, and within Qwen the pathology
+   coincides exactly with that introduction — but Qwen3.5-0.8B (2 KV heads,
+   GQA) and every non-Qwen GQA model in the atlas are immune, and Qwen3.5's
+   immunity arrives *without abandoning GQA*. GQA is where the pathology
+   appeared in this lineage, not what causes it. The remaining candidate is the
+   Qwen2-era training recipe, which persisted through Qwen2.5 and was changed
+   for Qwen3/3.5.
+4. **The detector behaves correctly on all six new catastrophic cells**
+   (lr_min 0.221–0.738, far below the 0.83 threshold, concentrated-collapse
+   geometry), and on all immune lineage cells (≥0.887).
+
+Together with §6.14, every catastrophic natural failure observed in this
+project's data is now precisely delimited: **Qwen2 and Qwen2.5 at any tested
+bit-width, Qwen3 at 2 bits, and nothing else.**
+
 ---
 
 ## 7. Ablations
@@ -1614,15 +1663,21 @@ relative logit structure that generation depends on.
 
 *Added for §6.13–§6.17:*
 
-18. **The metric result rests on only 8 broken cells, all from one family.** 72
-    cells sounds like a lot, but 64 of them are working configurations. Every
-    positive example of breakage in the atlas is a Qwen2.5 model. The proxy's
-    perfect separation could reflect one failure mode rather than a general
-    property, and the held-out test — while it uses 11 unseen models — contains
-    only 1 broken cell. §7.1 describes the synthetic-injection experiment that
-    would fix this, and until it is run the claim should be stated as *"predicts
-    the failures we observed, where reconstruction metrics do not"*, not as a
-    general detector.
+18. **The metric result rests mostly on one lineage's failures — now with the
+    boundary mapped rather than open.** *(revised 2026-08-18 after §6.18–§6.20.)*
+    As originally stated, every broken cell was Qwen-family and the proxy's
+    perfect separation could have reflected one failure mode. Both follow-ups
+    have now been run. The synthetic-injection experiment (§6.18) shows the
+    mechanism is causal and family-independent. The 1-bit stress test (§6.19)
+    manufactured genuine non-Qwen natural failures (Llama-3.2, SmolLM2) and
+    found the proxy — and every other cheap proxy — misses them, which is why
+    the claim is now stated with an explicit scope: reliable for concentrated
+    score-space collapse, structurally blind to uniform moderate damage. What
+    remains true and unresolved: every *catastrophic* natural failure (>×20)
+    observed to date, here and in the independent reports of §2.6, is a
+    Qwen-lineage model. Whether any non-Qwen model exists whose keys are
+    mean-dominated enough to collapse catastrophically is unknown; none of the
+    ten non-Qwen models tested is.
 19. **Single seed, single corpus, single context length.** Every cell is one run
     on the first 4,095 tokens of wikitext-2 with a 512-token window. No variance
     estimates. The effect sizes for the broken cells are enormous, but the
