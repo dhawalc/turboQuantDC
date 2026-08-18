@@ -64,6 +64,12 @@ def main():
     ap.add_argument("--load-4bit", action="store_true")
     ap.add_argument("--tokens", type=int, default=2048)
     ap.add_argument("--json", default=None, help="also write a JSON report here")
+    ap.add_argument("--kl", action="store_true",
+                    help="also run an unpatched pass and report the KL divergence "
+                         "of next-token distributions. Twice the cost, but it "
+                         "measures the model's OUTPUT, so it sees damage that "
+                         "reconstruction-side proxies structurally cannot "
+                         "(paper SS6.19).")
     a = ap.parse_args()
 
     torch.manual_seed(42)
@@ -80,9 +86,26 @@ def main():
     comp = KVCompressor(key_bits=a.bits, center=a.center)
     t0 = time.time()
     with patched_cache(comp), torch.no_grad():
-        model(ids, use_cache=True)
+        out_q = model(ids, use_cache=True)
     s = comp.summary()
     dt = time.time() - t0
+
+    kl = None
+    if a.kl:
+        with torch.no_grad():
+            out_c = model(ids, use_cache=True)
+            # KL(clean || quantized) per token, averaged; chunked over the
+            # sequence so two full-vocab float32 tensors never coexist.
+            tot, n = 0.0, 0
+            for i in range(0, ids.shape[1], 256):
+                lq = torch.log_softmax(out_q.logits[:, i:i+256].float(), dim=-1)
+                lc = torch.log_softmax(out_c.logits[:, i:i+256].float(), dim=-1)
+                tot += float((lc.exp() * (lc - lq)).sum(-1).sum())
+                n += lq.shape[1]
+                del lq, lc
+            kl = tot / max(n, 1)
+        del out_c
+    del out_q
 
     r_min = s["logit_r_min"]
     worst = min(s["per_layer_logit_r"], key=s["per_layer_logit_r"].get)
@@ -100,6 +123,18 @@ def main():
     print(f"mean logit correlation:        {s['logit_r']:.4f}")
     print(f"per-vector cosine (for scale): {s['vec_cos']:.4f}  "
           f"<- do not gate on this; see paper §6.15")
+    if kl is not None:
+        kl_note = ("clean" if kl < 0.02 else
+                   "measurable output distortion" if kl < 0.2 else
+                   "SEVERE output distortion")
+        print(f"output KL(clean||quantized):   {kl:.4f}  <- {kl_note}; this is "
+              f"the label-free end-to-end check")
+        if kl >= 0.2 and verdict == "PASS":
+            verdict, note = "FAIL (by KL)", ("reconstruction proxies passed but "
+                                             "the output distribution moved; "
+                                             "trust the KL (see SS6.19)")
+        elif kl >= 0.02 and verdict == "PASS":
+            verdict, note = "CAUTION (by KL)", "proxies passed but output KL is nonzero"
     print(f"verdict: {verdict} — {note}")
     print(f"({dt:.1f}s quantizer pass)")
     if not a.center and r_min < SAFE:
@@ -111,6 +146,7 @@ def main():
                        tokens=int(ids.shape[1]), verdict=verdict,
                        logit_r_min=r_min, logit_r_mean=s["logit_r"],
                        vec_cos=s["vec_cos"], worst_layer=int(worst),
+                       output_kl=kl,
                        per_layer_logit_r=s["per_layer_logit_r"]),
                   open(a.json, "w"), indent=1)
         print(f"wrote {a.json}")

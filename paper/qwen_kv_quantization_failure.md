@@ -1243,6 +1243,77 @@ validates the **mechanism**; §6.15's metric claim continues to rest on the eigh
 natural failures, and Limitation 18 stands with respect to the metric even though
 it is now discharged with respect to the mechanism.
 
+### 6.19 Stress test: 1-bit keys, and the scope boundary of every cheap proxy
+
+*(added 2026-08-18. This section reports a negative result about our own §6.15
+metric, found by deliberately trying to break it.)*
+
+§6.15's validation had a weakness we set out to close: every broken cell was
+Qwen-family, so the "detector" had only ever been tested against one damage
+mechanism. To manufacture natural failures with a *different* mechanism — pure
+resolution starvation, no shared-component pathology — we ran the nine most
+robust models of the atlas at **1-bit keys** (plus the 1-bit residual signs the
+pipeline always stores), centering on and off:
+
+| Model | ctr off: PPL ratio | lr_min | ctr on: PPL ratio | lr_min | vec_cos (on) |
+|---|---:|---:|---:|---:|---:|
+| Qwen3.5-0.8B | ×1.05 | 0.887 | ×1.04 | 0.931 | 0.960 |
+| Falcon3-1B | ×1.07 | 0.862 | ×1.06 | 0.928 | 0.964 |
+| OLMo-2-1B | ×1.15 | 0.879 | ×1.14 | 0.932 | 0.955 |
+| Gemma-2-2B | ×1.17 | 0.881 | ×1.11 | 0.931 | 0.960 |
+| Phi-4-mini | ×1.34 | 0.859 | ×1.37 | 0.932 | 0.965 |
+| Granite-3.3-2B | ×1.71 | **0.761** | ×1.21 | 0.933 | 0.976 |
+| Llama-3.2-3B | ×1.78 | 0.864 | **×2.54** | 0.932 | 0.968 |
+| SmolLM2-1.7B | **×2.16** | 0.834 | **×2.02** | 0.928 | 0.973 |
+| Llama-3.2-1B | **×4.91** | 0.856 | **×4.00** | 0.932 | 0.970 |
+
+Source: [`results/ppl_*-k1.json`](experiments/results/)
+
+Three results, in increasing order of importance:
+
+1. **One-bit key indices are shippable on some models.** Qwen3.5-0.8B and
+   Falcon3-1B take a 4–7% perplexity tax with 1-bit Lloyd-Max indices — about
+   2.3 bits per coordinate all-in, counting the pipeline's always-present 1-bit
+   residual signs and per-vector norms, i.e. ≈7× key compression. The
+   robustness spread across otherwise "immune" families is itself large:
+   Llama-3.2-1B pays ×4.9 under the identical quantizer.
+2. **The desired non-Qwen natural failures exist** (Llama-3.2 and SmolLM2 above
+   the ×2 damage line), and **every cheap proxy misses them**. The centered
+   broken cells score lr_min 0.928–0.932 and cosine 0.968–0.973 — comfortably
+   above every threshold that §6.15's atlas would set. This is not a defect
+   specific to the logit-correlation statistic: per-vector cosine, mean logit
+   correlation, and the spread ratio all false-pass the same cells. Adding these
+   18 cells to the atlas (126 cells, 23 models), worst-layer logit correlation
+   misclassifies 5 of 126 cells where cosine misclassifies 14, and 7 of 104
+   held-out cells against cosine's 34 — still strictly dominant, no longer
+   perfect.
+3. **Why they miss is the interesting part.** Read down the centered columns:
+   nine models, one quantizer setting, and the proxies are *constant* —
+   lr_min 0.928–0.933, cosine 0.955–0.976 — while true damage spans ×1.04 to
+   ×4.00. At 1 bit the noise the quantizer injects is essentially
+   model-independent, so a statistic computed from (key, reconstructed-key)
+   pairs sees the same thing everywhere. The damage variance lives entirely in
+   the *model's sensitivity* to that noise, which no single-pass key-side
+   statistic can observe. Schematically: damage ≈ injected noise × model
+   sensitivity. §6.15's Qwen failures are detectable because the mean-dominance
+   pathology makes the **noise term** explode (score-space collapse at layer 0);
+   the 1-bit failures are invisible because only the **sensitivity term**
+   varies.
+
+**Restated scope of the §6.15 claim.** Worst-layer logit correlation is a
+reliable detector of the concentrated score-space collapse that mean-dominated
+keys cause — every atlas cell with damage above ×5 sits below 0.81, with a wide
+margin to the healthy range. It is not a general damage meter, and per §3 of
+this section no reconstruction-side statistic can be: certifying a compressed
+cache for deployment requires at least one end-to-end measurement. A cheap
+proxy can tell you *your quantizer is destroying score structure*; it cannot
+tell you *your model happens to be fragile*.
+
+The centering sign-flip on Llama-3.2-3B (×1.78 uncentered → ×2.54 centered) is
+noted as an open observation: at 1 bit, spending the codebook on the deviation
+around a small mean is evidently not always the right trade. We have not
+investigated further.
+
 ---
 
 ## 7. Ablations

@@ -227,11 +227,15 @@ def main():
     ap.add_argument("--out", default=None)
     ap.add_argument("--inject", type=float, nargs="+", default=[0.0],
                     help="synthetic shared-component magnitudes, relative to mean key norm")
+    ap.add_argument("--seed", type=int, default=SEED,
+                    help="rotation/probe seed (default 42); use to test seed robustness")
+    ap.add_argument("--text", default=None,
+                    help="path to an alternative evaluation text (default: wikitext-2 test)")
     a = ap.parse_args()
     name = a.name or a.model.rstrip("/").split("/")[-1]
 
-    torch.manual_seed(SEED)
-    text = (SCRATCH / "wikitext2_test.txt").read_text()
+    torch.manual_seed(a.seed)
+    text = Path(a.text).read_text() if a.text else (SCRATCH / "wikitext2_test.txt").read_text()
 
     print(f"=== {name} ===", flush=True)
     t0 = time.time()
@@ -257,7 +261,7 @@ def main():
             if a.quant_values:
                 vb = bits
             comp = KVCompressor(key_bits=bits, center=center, val_bits=vb,
-                                inject_alpha=alpha)
+                                inject_alpha=alpha, seed=a.seed)
             t0 = time.time()
             ppl, _ = sliding_ppl(model, ids, comp)
             s = comp.summary()
@@ -275,6 +279,7 @@ def main():
     RESULTS.mkdir(parents=True, exist_ok=True)
     out = Path(a.out) if a.out else RESULTS / f"ppl_{name.replace('/','_')}.json"
     json.dump(dict(model=a.model, name=name, load_4bit=a.load_4bit,
+                   seed=a.seed, text=a.text,
                    tokens=int(ids.shape[1]), context=CONTEXT, stride=STRIDE,
                    quant_values=a.quant_values,
                    num_layers=int(cfg.num_hidden_layers),
