@@ -189,7 +189,9 @@ def sliding_ppl(model, input_ids, compressor=None, context=CONTEXT, stride=STRID
     return (math.exp(sum(nlls) / ntok) if ntok else float("inf")), ntok
 
 
-def load_model(spec, load_4bit, device="cuda"):
+def load_model(spec, load_4bit, device="auto"):
+    """device_map="auto" lets accelerate keep everything on GPU when it fits and
+    spill the remainder to CPU when it does not, so large models still run."""
     import transformers as tf
     kw = dict(dtype=torch.bfloat16, device_map=device)
     if load_4bit:

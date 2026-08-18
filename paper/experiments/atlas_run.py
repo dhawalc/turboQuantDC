@@ -19,6 +19,15 @@ SCRATCH = Path(os.environ.get(
 WORK = SCRATCH / "atlas"
 
 # (hf repo, short name, load_in_4bit)
+# Larger / newer models than the Qwen2.5-7B reference. Selected with
+# TQ_SET=better ; the default set is the small-model breadth sweep.
+BETTER = [
+    ("Qwen/Qwen2.5-14B-Instruct",         "qwen2.5-14b",   True),
+    ("Qwen/Qwen3.5-9B",                   "qwen3.5-9b",    True),
+    ("Qwen/Qwen2.5-32B-Instruct",         "qwen2.5-32b",   True),
+    ("Qwen/Qwen3-14B",                    "qwen3-14b",     True),
+]
+
 MODELS = [
     ("Qwen/Qwen2.5-1.5B-Instruct",        "qwen2.5-1.5b",  False),
     ("Qwen/Qwen2.5-3B-Instruct",          "qwen2.5-3b",    False),
@@ -47,7 +56,8 @@ def run(cmd, **kw):
 
 def main():
     WORK.mkdir(parents=True, exist_ok=True)
-    for repo, name, four in MODELS:
+    models = BETTER if os.environ.get("TQ_SET") == "better" else MODELS
+    for repo, name, four in models:
         out = RESULTS / f"ppl_{name}.json"
         if out.exists():
             print(f"[skip] {name} already done", flush=True)
