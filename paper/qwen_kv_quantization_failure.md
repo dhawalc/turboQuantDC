@@ -2102,15 +2102,33 @@ relative logit structure that generation depends on.
    resolved on the host today; they match the versions recorded in a contemporaneous
    2026-04-04 results file in this repository, but the April-9 run itself did not
    emit a lockfile.
-8. **Storage overhead of the correction is not accounted for.** Information
-   -theoretically the stored mean is `d` values per head. As implemented, the
-   per-chunk mean is materialized to full sequence length
-   (`chunk_mean = mean.expand(...).clone()`) and appended to a per-chunk list, so
-   the mean-removal arm carries an FP16 tensor the size of the uncompressed key
-   tensor. **The perplexity comparisons in this paper are therefore quality
-   comparisons at equal quantizer bit-width, not at equal memory.** No compression
-   ratio should be quoted from these runs. Fixing the storage to `O(d)` per head is
-   straightforward and is a prerequisite for any memory claim.
+8. **Resolved 2026-08-18 — and it was worse than this limitation stated.**
+   The per-chunk mean was materialized to full sequence length
+   (`chunk_mean = mean.expand(...).clone()`), so the mean-removal arm carried an
+   FP16 tensor the size of the uncompressed keys. Measuring the bytes actually
+   held revealed three further defects: quantizer indices stored in `int64` for
+   values below 2^bits, residual signs stored in `float32` for one bit of
+   information, and raw FP16 key/value copies retained even when no FP16 window
+   was configured. Together these made the "compressor" occupy **12.05 MiB
+   where an FP16 cache occupies 2.00 MiB — a 0.17× expansion**, against an
+   information-theoretic ideal of 5.95×.
+
+   All four are fixed (means stored compactly per chunk and expanded as
+   stride-0 views; indices and signs bit-packed along the head dimension, so
+   every sequence-dim slice, `cat` and `index_select` still works untouched;
+   raw tensors dropped when unused). Stored bytes are now **0.361 MiB, a 5.54×
+   compression**, with bit-identical reconstruction, and **896 → 161 MiB
+   (5.56×) measured end-to-end on Llama-3.2-3B at 8,192 tokens**
+   ([`experiments/memory_bench.py`](experiments/memory_bench.py)) at a quality
+   cost of ×1.07 perplexity (§6.14, 2-bit centered) and 0.52× prefill
+   throughput.
+
+   Two caveats stand before quoting a ratio for a *deployment*: the quality
+   harness hands FP16 reconstructions back to the model's own cache, so a live
+   harness process still holds more than an FP16 cache — the 5.56× is the size
+   of the compressed representation, which is what a cache storing only that
+   would hold. And 3-bit indices pack at 4 bits per value (`8 // 3 = 2`), so
+   3-bit reaches only 3.27×; 2-bit and 4-bit pack exactly.
 9. **Unresolved measurement inconsistency in the attention-cosine metric.** Three
    runs in this repository report mutually irreconcilable attention cosine
    similarities for nominally comparable 3-bit configurations:
