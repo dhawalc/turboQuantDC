@@ -10,6 +10,14 @@ From-scratch KV cache compression library implementing TurboQuant (ICLR 2026). B
 
 [Live showcase](https://dhawalc.github.io/turboQuantDC/) | [PyPI](https://pypi.org/project/turboquantdc/)
 
+**Independent validation:** the central failure/fix experiment is packaged for
+third-party reproduction — see [REPRODUCTIONS.md](REPRODUCTIONS.md) (registry
+records agreeing *and* disagreeing results). The full working manuscript with
+mechanism, 130+-configuration atlas, and limitations is
+[`paper/qwen_kv_quantization_failure.md`](paper/qwen_kv_quantization_failure.md).
+To check *your* model before shipping a compressed cache:
+`python paper/experiments/kvcheck.py --model <hf-id-or-path>`.
+
 ---
 
 ## The Patch
