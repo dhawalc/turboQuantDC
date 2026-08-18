@@ -966,7 +966,10 @@ class _CompressedLayer:
         through unchanged, so both layouts are safe.
         """
         m = self._key_means[i]
-        n_tok = self._key_indices[i].shape[2]
+        # Fall back to the mean's own length if the index chunks have already
+        # been consolidated out from under us (see self_correcting_cache).
+        n_tok = (self._key_indices[i].shape[2]
+                 if i < len(self._key_indices) else m.shape[2])
         if m.shape[2] == 1 and n_tok != 1:
             m = m.expand(m.shape[0], m.shape[1], n_tok, m.shape[3])
         return m[:, :, start:, :] if start else m
