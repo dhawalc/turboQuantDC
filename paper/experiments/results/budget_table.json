@@ -1,0 +1,410 @@
+{
+ "1.02": {
+  "safe": 7,
+  "total": 13,
+  "rows": [
+   [
+    "falcon3-1b",
+    0.03749326327830959,
+    {
+     "bits": 2,
+     "center": true,
+     "ratio": 1.0111238486999252,
+     "safe": true
+    }
+   ],
+   [
+    "gemma2-2b",
+    0.029007702524296786,
+    {
+     "bits": 2,
+     "center": true,
+     "ratio": 1.0152620794766098,
+     "safe": true
+    }
+   ],
+   [
+    "granite3.3-2b",
+    0.04368260851863481,
+    {
+     "bits": 2,
+     "center": true,
+     "ratio": 1.0673777421008706,
+     "safe": false
+    }
+   ],
+   [
+    "llama3.2-1b",
+    0.005800586698693953,
+    {
+     "bits": 4,
+     "center": true,
+     "ratio": 1.0134080587789065,
+     "safe": true
+    }
+   ],
+   [
+    "llama3.2-3b",
+    0.016777698727706018,
+    {
+     "bits": 3,
+     "center": true,
+     "ratio": 1.0192692329463466,
+     "safe": true
+    }
+   ],
+   [
+    "olmo2-1b",
+    0.05574069989430045,
+    {
+     "bits": 2,
+     "center": true,
+     "ratio": 1.0226166735816167,
+     "safe": false
+    }
+   ],
+   [
+    "opt-2.7b",
+    0.32748930141590316,
+    {
+     "bits": 2,
+     "center": true,
+     "ratio": 1.0111028402679696,
+     "safe": true
+    }
+   ],
+   [
+    "phi4-mini",
+    0.025546913213663317,
+    {
+     "bits": 2,
+     "center": true,
+     "ratio": 1.0844522661445495,
+     "safe": false
+    }
+   ],
+   [
+    "pythia-2.8b",
+    0.03274482947605776,
+    {
+     "bits": 2,
+     "center": true,
+     "ratio": 1.075534398220209,
+     "safe": false
+    }
+   ],
+   [
+    "qwen2.5-1.5b",
+    0.10459995971957799,
+    {
+     "bits": 2,
+     "center": true,
+     "ratio": 1.0705229850415454,
+     "safe": false
+    }
+   ],
+   [
+    "qwen3-1.7b",
+    0.004515936265928828,
+    {
+     "bits": 4,
+     "center": true,
+     "ratio": 0.9913771641900194,
+     "safe": true
+    }
+   ],
+   [
+    "qwen3.5-0.8b",
+    0.045268725806893784,
+    {
+     "bits": 2,
+     "center": true,
+     "ratio": 1.0014602878442704,
+     "safe": true
+    }
+   ],
+   [
+    "smollm2-1.7b",
+    0.017446321243983647,
+    {
+     "bits": 3,
+     "center": true,
+     "ratio": 1.0332930912798315,
+     "safe": false
+    }
+   ]
+  ]
+ },
+ "1.05": {
+  "safe": 4,
+  "total": 13,
+  "rows": [
+   [
+    "falcon3-1b",
+    0.09699263172596842,
+    {
+     "bits": 1,
+     "center": true,
+     "ratio": 1.0578444757291645,
+     "safe": false
+    }
+   ],
+   [
+    "gemma2-2b",
+    0.05937586017794654,
+    {
+     "bits": 2,
+     "center": true,
+     "ratio": 1.0152620794766098,
+     "safe": true
+    }
+   ],
+   [
+    "granite3.3-2b",
+    0.08008708698044055,
+    {
+     "bits": 1,
+     "center": true,
+     "ratio": 1.212531966519062,
+     "safe": false
+    }
+   ],
+   [
+    "llama3.2-1b",
+    0.01227566705921859,
+    {
+     "bits": 3,
+     "center": true,
+     "ratio": 1.057177185238155,
+     "safe": false
+    }
+   ],
+   [
+    "llama3.2-3b",
+    0.030423794321734206,
+    {
+     "bits": 2,
+     "center": true,
+     "ratio": 1.0746999269258355,
+     "safe": false
+    }
+   ],
+   [
+    "olmo2-1b",
+    0.08832143685351622,
+    {
+     "bits": 1,
+     "center": true,
+     "ratio": 1.1420880584904622,
+     "safe": false
+    }
+   ],
+   [
+    "opt-2.7b",
+    0.4110887227691424,
+    {
+     "bits": 2,
+     "center": true,
+     "ratio": 1.0111028402679696,
+     "safe": true
+    }
+   ],
+   [
+    "phi4-mini",
+    0.04836475483435299,
+    {
+     "bits": 2,
+     "center": true,
+     "ratio": 1.0844522661445495,
+     "safe": false
+    }
+   ],
+   [
+    "pythia-2.8b",
+    0.08067745667995911,
+    {
+     "bits": 2,
+     "center": true,
+     "ratio": 1.075534398220209,
+     "safe": false
+    }
+   ],
+   [
+    "qwen2.5-1.5b",
+    0.1250184629347635,
+    {
+     "bits": 2,
+     "center": true,
+     "ratio": 1.0705229850415454,
+     "safe": false
+    }
+   ],
+   [
+    "qwen3-1.7b",
+    0.01112646662980248,
+    {
+     "bits": 3,
+     "center": true,
+     "ratio": 1.0120543877712476,
+     "safe": true
+    }
+   ],
+   [
+    "qwen3.5-0.8b",
+    0.10448197057156447,
+    {
+     "bits": 1,
+     "center": true,
+     "ratio": 1.04393146423227,
+     "safe": true
+    }
+   ],
+   [
+    "smollm2-1.7b",
+    0.030936650559467732,
+    {
+     "bits": 2,
+     "center": true,
+     "ratio": 1.2081916773190706,
+     "safe": false
+    }
+   ]
+  ]
+ },
+ "1.1": {
+  "safe": 9,
+  "total": 13,
+  "rows": [
+   [
+    "falcon3-1b",
+    0.16963538279437917,
+    {
+     "bits": 1,
+     "center": true,
+     "ratio": 1.0578444757291645,
+     "safe": true
+    }
+   ],
+   [
+    "gemma2-2b",
+    0.10054906444396201,
+    {
+     "bits": 1,
+     "center": true,
+     "ratio": 1.1147583643810488,
+     "safe": false
+    }
+   ],
+   [
+    "granite3.3-2b",
+    0.11960753726162139,
+    {
+     "bits": 1,
+     "center": true,
+     "ratio": 1.212531966519062,
+     "safe": false
+    }
+   ],
+   [
+    "llama3.2-1b",
+    0.02074614107355023,
+    {
+     "bits": 3,
+     "center": true,
+     "ratio": 1.057177185238155,
+     "safe": true
+    }
+   ],
+   [
+    "llama3.2-3b",
+    0.050100336466922524,
+    {
+     "bits": 2,
+     "center": true,
+     "ratio": 1.0746999269258355,
+     "safe": true
+    }
+   ],
+   [
+    "olmo2-1b",
+    0.14060792119215598,
+    {
+     "bits": 1,
+     "center": true,
+     "ratio": 1.1420880584904622,
+     "safe": false
+    }
+   ],
+   [
+    "opt-2.7b",
+    0.49788588519549937,
+    {
+     "bits": 2,
+     "center": true,
+     "ratio": 1.0111028402679696,
+     "safe": true
+    }
+   ],
+   [
+    "phi4-mini",
+    0.06784012207588147,
+    {
+     "bits": 2,
+     "center": true,
+     "ratio": 1.0844522661445495,
+     "safe": true
+    }
+   ],
+   [
+    "pythia-2.8b",
+    0.15760108688341082,
+    {
+     "bits": 2,
+     "center": true,
+     "ratio": 1.075534398220209,
+     "safe": true
+    }
+   ],
+   [
+    "qwen2.5-1.5b",
+    0.15778665200045863,
+    {
+     "bits": 2,
+     "center": true,
+     "ratio": 1.0705229850415454,
+     "safe": true
+    }
+   ],
+   [
+    "qwen3-1.7b",
+    0.02173523194942839,
+    {
+     "bits": 3,
+     "center": true,
+     "ratio": 1.0120543877712476,
+     "safe": true
+    }
+   ],
+   [
+    "qwen3.5-0.8b",
+    0.16305331780513377,
+    {
+     "bits": 1,
+     "center": true,
+     "ratio": 1.04393146423227,
+     "safe": true
+    }
+   ],
+   [
+    "smollm2-1.7b",
+    0.05026722439587976,
+    {
+     "bits": 2,
+     "center": true,
+     "ratio": 1.2081916773190706,
+     "safe": false
+    }
+   ]
+  ]
+ }
+}
