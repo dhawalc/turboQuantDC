@@ -1,0 +1,54 @@
+{
+ "model": "/tmp/claude-1000/-home-dhawal-turboQuantDC/0bebcfa0-db7f-400c-8b64-efaab6cc84c0/scratchpad/atlas/qwen3.5-0.8b",
+ "name": "qwen3.5-0.8b",
+ "tokens": 2048,
+ "n_layers": 6,
+ "rho_mean": 0.6395302241047224,
+ "rho_max": 0.8425590395927429,
+ "frac_heads_gt1": 0.0,
+ "shared_energy_mean": 0.2887016957004865,
+ "per_layer": [
+  {
+   "layer": 3,
+   "rho_mean": 0.7650889754295349,
+   "rho_max": 0.8425590395927429,
+   "frac_heads_gt1": 0.0,
+   "shared_energy": 0.3674848675727844
+  },
+  {
+   "layer": 7,
+   "rho_mean": 0.4781302809715271,
+   "rho_max": 0.5303086042404175,
+   "frac_heads_gt1": 0.0,
+   "shared_energy": 0.18621553480625153
+  },
+  {
+   "layer": 11,
+   "rho_mean": 0.582043468952179,
+   "rho_max": 0.6328797340393066,
+   "frac_heads_gt1": 0.0,
+   "shared_energy": 0.2518526613712311
+  },
+  {
+   "layer": 15,
+   "rho_mean": 0.6705318689346313,
+   "rho_max": 0.676733672618866,
+   "frac_heads_gt1": 0.0,
+   "shared_energy": 0.30928435921669006
+  },
+  {
+   "layer": 19,
+   "rho_mean": 0.7173712253570557,
+   "rho_max": 0.7662726640701294,
+   "frac_heads_gt1": 0.0,
+   "shared_energy": 0.3377692699432373
+  },
+  {
+   "layer": 23,
+   "rho_mean": 0.6240155696868896,
+   "rho_max": 0.6506929397583008,
+   "frac_heads_gt1": 0.0,
+   "shared_energy": 0.2796034812927246
+  }
+ ]
+}
