@@ -1678,6 +1678,38 @@ error. Distinguishing a 2% tax from an 8% tax still requires measuring it. The
 law answers *"will this configuration destroy the model?"* cheaply and
 reliably; it does not answer *"is this configuration 3% or 6% worse?"*
 
+**Is the curve itself predictable, so the noise passes could be skipped?** No.
+The natural candidate is ρ, since §6.22 argues that mean-dominated keys are
+what makes a model fragile. Summarising each curve by its **noise tolerance**
+(the score-space noise at which damage reaches ×2) and correlating against the
+mean-dominance statistics of §6.20 over the eleven models that have both:
+
+| Predictor | Spearman vs noise tolerance |
+|---|---:|
+| mean ρ | 0.18 |
+| max ρ over heads | 0.24 |
+| fraction of heads with ρ > 1 | −0.35 |
+| shared energy | −0.07 |
+
+Nothing predicts it. (An earlier five-model version of this table showed
+Spearman 0.80 for mean ρ; it did not survive the full cohort, which is worth
+recording as a caution about small-n structure claims in this literature,
+including our own.) The reason is structural rather than incidental: ρ governs
+how efficiently *key-space* perturbation converts into *score-space*
+perturbation — and the proxy measurement already absorbs that conversion,
+since it is measured in score space. What the curve adds is the model's
+intrinsic sensitivity of its output to score-space damage, which is a different
+quantity. Pythia-2.8B makes the point: it is the most mean-dominated model in
+the study (ρ = 8.4) *and* the most tolerant of score-space noise (tolerance
+0.73), while Llama-3.2-1B is barely mean-dominated (ρ = 1.06) and among the
+least tolerant (0.089).
+
+**The two factors of §6.19 are therefore genuinely independent and both must be
+measured.** Structure (ρ, one pass) tells you how much score-noise a compressor
+will produce; the curve (five to eleven passes) tells you what that noise
+costs. Neither substitutes for the other, and this is why §6.15's proxy alone
+could never have been sufficient.
+
 **Scope.** 13 models, one corpus, one quantizer family, keys only, single seed;
 curves interpolated from five points with linear extrapolation beyond the last
 (flagged per cell in the output). The models were chosen to span the damage
