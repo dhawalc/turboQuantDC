@@ -1307,12 +1307,20 @@ Three results, in increasing order of importance:
 
 **Restated scope of the §6.15 claim.** Worst-layer logit correlation is a
 reliable detector of the concentrated score-space collapse that mean-dominated
-keys cause — every atlas cell with damage above ×5 sits below 0.81, with a wide
-margin to the healthy range. It is not a general damage meter, and per §3 of
-this section no reconstruction-side statistic can be: certifying a compressed
-cache for deployment requires at least one end-to-end measurement. A cheap
-proxy can tell you *your quantizer is destroying score structure*; it cannot
-tell you *your model happens to be fragile*.
+keys cause: every atlas cell with damage above ×5 sits below 0.81, and no cell
+at or above 0.81 is catastrophic. In the 1-bit regime the statistic errs in
+both directions at the margins — it passes the moderate uniform failures
+(above), and it under-rates one healthy model (Granite-3.3-2B uncentered,
+lr_min 0.761 at a true cost of ×1.71), so below 2 bits a low reading means
+"measure end-to-end", not "broken". It is not a general damage meter, and per
+point 3 of this section no reconstruction-side statistic can be: certifying a
+compressed cache for deployment requires at least one end-to-end measurement.
+A cheap proxy can tell you *your quantizer is destroying score structure*; it
+cannot tell you *your model happens to be fragile*. Nor is perplexity itself
+the top of this ladder: concurrent work on alignment under KV quantization
+[ref 20] reports Mistral-7B losing 15.2% of its safety refusals at ×1.03
+perplexity — each metric in the hierarchy is blind to damage that lives below
+its resolution.
 
 The centering sign-flip on Llama-3.2-3B (×1.78 uncentered → ×2.54 centered) is
 noted as an open observation: at 1 bit, spending the codebook on the deviation
