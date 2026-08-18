@@ -1,0 +1,166 @@
+{
+  "model": "Qwen/Qwen2.5-3B-Instruct",
+  "attention": {
+    "2bit_center=True": {
+      "cosine_sim": 0.8872963272035121,
+      "top1_match": 0.8,
+      "top5_match": 1.0
+    },
+    "2bit_center=False": {
+      "cosine_sim": 0.6345202145115748,
+      "top1_match": 0.5,
+      "top5_match": 0.8
+    },
+    "3bit_center=True": {
+      "cosine_sim": 0.9939070284366608,
+      "top1_match": 0.9,
+      "top5_match": 1.0
+    },
+    "3bit_center=False": {
+      "cosine_sim": 0.6642083312610889,
+      "top1_match": 0.5,
+      "top5_match": 0.8
+    },
+    "4bit_center=True": {
+      "cosine_sim": 0.9968836069107055,
+      "top1_match": 1.0,
+      "top5_match": 1.0
+    },
+    "4bit_center=False": {
+      "cosine_sim": 0.7944901032334769,
+      "top1_match": 0.7,
+      "top5_match": 0.9
+    }
+  },
+  "generation": {
+    "fp16_baseline": {
+      "n_tokens": 200,
+      "time": 8.756330666015856,
+      "perplexity": 7.844678736372876
+    },
+    "2bit_center": {
+      "n_tokens": 200,
+      "time": 24.631321505992673,
+      "match_rate": 0.27,
+      "first_divergence": 50,
+      "perplexity": 8.342667019298203
+    },
+    "2bit_no_center": {
+      "n_tokens": 200,
+      "time": 23.875266938935965,
+      "match_rate": 0.285,
+      "first_divergence": 50,
+      "perplexity": 8.380610572772522
+    },
+    "3bit_center": {
+      "n_tokens": 200,
+      "time": 26.102609083987772,
+      "match_rate": 0.64,
+      "first_divergence": 128,
+      "perplexity": 7.720112714341453
+    },
+    "3bit_no_center": {
+      "n_tokens": 200,
+      "time": 23.971481721033342,
+      "match_rate": 0.26,
+      "first_divergence": 50,
+      "perplexity": 7.778520015891395
+    },
+    "4bit_center": {
+      "n_tokens": 200,
+      "time": 25.650492966058664,
+      "match_rate": 0.675,
+      "first_divergence": 133,
+      "perplexity": 7.861304746460814
+    },
+    "4bit_no_center": {
+      "n_tokens": 200,
+      "time": 24.931484604021534,
+      "match_rate": 0.64,
+      "first_divergence": 127,
+      "perplexity": 7.8926601095818425
+    }
+  },
+  "large_model": "Qwen/Qwen2.5-14B-Instruct",
+  "large_attention": {
+    "2bit_center=True": {
+      "cosine_sim": 0.9914409682154656,
+      "top1_match": 0.95,
+      "top5_match": 1.0
+    },
+    "2bit_center=False": {
+      "cosine_sim": 0.8799277542158961,
+      "top1_match": 0.775,
+      "top5_match": 0.975
+    },
+    "3bit_center=True": {
+      "cosine_sim": 0.9948602825403213,
+      "top1_match": 1.0,
+      "top5_match": 1.0
+    },
+    "3bit_center=False": {
+      "cosine_sim": 0.9777492046356201,
+      "top1_match": 0.925,
+      "top5_match": 0.95
+    },
+    "4bit_center=True": {
+      "cosine_sim": 0.9988772302865982,
+      "top1_match": 1.0,
+      "top5_match": 1.0
+    },
+    "4bit_center=False": {
+      "cosine_sim": 0.9644330486655235,
+      "top1_match": 0.9,
+      "top5_match": 1.0
+    }
+  },
+  "large_generation": {
+    "fp16_baseline": {
+      "n_tokens": 200,
+      "time": 10.001005684025586,
+      "perplexity": 7.617941082439028
+    },
+    "2bit_center": {
+      "n_tokens": 200,
+      "time": 32.53576115495525,
+      "match_rate": 0.265,
+      "first_divergence": 47,
+      "perplexity": 7.454253215998867
+    },
+    "2bit_no_center": {
+      "n_tokens": 200,
+      "time": 34.575383399031125,
+      "match_rate": 0.275,
+      "first_divergence": 47,
+      "perplexity": 7.671018218007175
+    },
+    "3bit_center": {
+      "n_tokens": 200,
+      "time": 43.64903324097395,
+      "match_rate": 0.325,
+      "first_divergence": 61,
+      "perplexity": 8.039633420621996
+    },
+    "3bit_no_center": {
+      "n_tokens": 200,
+      "time": 38.775644446955994,
+      "match_rate": 0.19,
+      "first_divergence": 34,
+      "perplexity": 7.817285383001527
+    },
+    "4bit_center": {
+      "n_tokens": 200,
+      "time": 41.794164810096845,
+      "match_rate": 0.45,
+      "first_divergence": 90,
+      "perplexity": 7.641261139854002
+    },
+    "4bit_no_center": {
+      "n_tokens": 200,
+      "time": 43.201270254096016,
+      "match_rate": 0.46,
+      "first_divergence": 90,
+      "perplexity": 7.684917733855263
+    }
+  }
+}
