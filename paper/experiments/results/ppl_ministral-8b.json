@@ -1,5 +1,0 @@
-{
- "name": "ministral-8b",
- "model": "mistralai/Ministral-8B-Instruct-2410",
- "error": "harness: se. Process 2763641 has 432.25 MiB memory in use. Process 113122 has 4.24 GiB memory in use. Including non-PyTorch memory, this process has 7.04 GiB memory in use. Process 233814 has 10.89 GiB memory in use. Of the allocated memory 6.46 GiB is allocated by PyTorch, and 121.15 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://docs.pytorch.org/docs/stable/notes/cuda.html#optimizing-memory-usage-with-pytorch-cuda-alloc-conf)\n"
-}

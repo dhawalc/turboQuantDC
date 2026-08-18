@@ -171,6 +171,24 @@ def main():
                               f"(x{r['ratio']:.1f}, {val:.4f})" for r, val in fps)
                 print(f"  {k}: {s}")
 
+    # cutoff-sensitivity: the x2 "broken" line is a choice; show that the
+    # ranking of proxies is not an artifact of it.
+    print("\nCUTOFF SENSITIVITY (best-threshold errors at each damage cutoff):")
+    print(f"{'cutoff':>8s} {'broken':>7s} {'lr_min errs':>12s} {'vec_cos errs':>13s}")
+    for cut in (1.5, 2.0, 5.0, 10.0):
+        for k in ("logit_r_min", "vec_cos"):
+            v = [r[k] for r in rows]
+            obs = sorted(set(v))
+            vals = [(a + b) / 2 for a, b in zip(obs, obs[1:])] + [obs[-1] + 1e-6]
+            err = min(sum(1 for i, r in enumerate(rows)
+                          if (v[i] < t) != (r["ratio"] > cut)) for t in vals)
+            if k == "logit_r_min":
+                e1 = err
+            else:
+                e2 = err
+        nb = sum(1 for r in rows if r["ratio"] > cut)
+        print(f"{cut:>8.1f} {nb:>7d} {e1:>12d} {e2:>13d}")
+
     print("\nPer-cell detail (sorted by true damage):")
     print(f"{'model':16s} {'bits':>4s} {'ctr':>5s} {'ppl':>12s} {'ratio':>10s} "
           f"{'vec_cos':>8s} {'logit_r':>8s} {'lr_min':>8s}")

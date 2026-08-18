@@ -1,5 +1,0 @@
-{
- "name": "qwen2.5-32b",
- "model": "Qwen/Qwen2.5-32B-Instruct",
- "error": "harness:  recent call last):\n  File \"/home/dhawal/turboQuantDC/paper/experiments/ppl_harness.py\", line 288, in <module>\n    main()\n    ~~~~^^\n  File \"/home/dhawal/turboQuantDC/paper/experiments/ppl_harness.py\", line 238, in main\n    model, tok = load_model(a.model, a.load_4bit)\n                 ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/dhawal/turboQuantDC/paper/experiments/ppl_harness.py\", line 214, in load_model\n    raise RuntimeError(f\"could not load {spec}\")\nRuntimeError: could not load /tmp/claude-1000/-home-dhawal-turboQuantDC/0bebcfa0-db7f-400c-8b64-efaab6cc84c0/scratchpad/atlas/qwen2.5-32b\n"
-}
