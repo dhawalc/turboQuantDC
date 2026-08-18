@@ -117,16 +117,33 @@ Qwen2.5-14B-Instruct?
    assumption by a large shared per-head key component, under a pipeline that
    normalizes keys before quantizing direction;
 4. evaluate a correction (per-head key mean removal with exact restoration) that
-   recovers to within +0.38 PPL of the uncompressed-KV baseline; and
-5. report a correlation between failure severity and KV-head count that
-   constrains, but does not yet establish, the generality of the mechanism;
-6. *(added 2026-08-18)* show across 72 configurations, 13 models and 6 families
-   that **per-vector reconstruction metrics do not predict KV-compression damage**,
-   and validate a drop-in replacement — worst-layer attention-logit correlation —
-   that separates working from broken configurations with zero errors in-sample and
-   transfers to unseen architectures; and
+   recovers to within +0.38 PPL of the uncompressed-KV baseline;
+5. initially report a correlation between failure severity and KV-head count —
+   then **refute it ourselves** with a 26-model atlas (§6.14) and locate the
+   pathology's true boundary instead: it was born with the Qwen2 generation and
+   engineered out by Qwen3.5, with the mechanism's quantity ρ tripling exactly
+   at the discontinuity while shared key *energy* stays constant (§6.20);
+6. *(added 2026-08-18)* show across 150+ configurations and 26 models that
+   **per-vector reconstruction metrics do not predict KV-compression damage**,
+   validate a strictly better cheap statistic — worst-layer attention-logit
+   correlation, which catches every catastrophic cell and transfers to unseen
+   architectures (§6.15) — and then map its scope boundary by manufacturing
+   failures that no reconstruction-side proxy can see, explaining *why*
+   structurally: such proxies measure the noise a quantizer injects, never the
+   model's sensitivity to it (§6.19);
 7. quantify the correction's worth in bits: 2-bit centered outperforms 6-bit
-   uncentered, i.e. centering substitutes for roughly four bits of precision.
+   uncentered, i.e. centering substitutes for roughly four bits of precision
+   (§6.16);
+8. *(added 2026-08-18)* establish the mechanism **causally**: injecting a
+   synthetic shared key component into an immune model reproduces the entire
+   failure dose-dependently, and centering neutralizes every dose (§6.18); and
+9. *(added 2026-08-18)* document independent concurrent observations of the
+   same failure, family-specificity, and metric blindness by unrelated parties
+   in different codebases (§2.6), and position the work against prior art found
+   in an online search: centering-before-VQ exists (NSNQuant, classical
+   mean-removed VQ), score-space evaluation exists in embryo (KIVI, the
+   withdrawn HeadQ) — the diagnosis, causal test, bit-quantification, and
+   paired falsification at scale are what this paper adds.
 
 We deliberately restrict the claim. We do not claim that canonical TurboQuant fails
 on Qwen; we claim that *this* TurboQuant-family configuration does, and we describe
@@ -1430,6 +1447,59 @@ the per-token deviation* (ρ > 1), i.e. whether normalized keys collapse onto
 one direction. This sharpens §6.10's tail-not-centre conclusion into a clean
 two-regime picture and further confirms the mechanism of §4.2.
 
+### 6.21 Where the mean comes from: two sources, split by layer
+
+*(added 2026-08-18, discharging Limitation 12's remaining measurement)*
+
+Limitation 12 noted that the shared component's origin — `W_k · E[z]`, the
+residual stream's persistent mean pushed through the key projection — was
+inferred by elimination, never measured. We measured it on Qwen2.5-7B with
+forward hooks: per layer, the exact linear decomposition
+`μ_pre = W_k E[z] + b_k` (pre-RoPE; reconstruction error ≤0.3% even through
+4-bit weights), the channel concentration of `E[z]`, and how much of the mean
+survives RoPE.
+
+| Layer | ‖μ_pre‖ | ‖W_k E[z]‖ | ‖b_k‖ | cos(W_k E[z], μ) | top-16 chan. share of E[z] |
+|---:|---:|---:|---:|---:|---:|
+| 0 | 604.4 | 10.9 | **604.7** | −0.01 | 0.77 |
+| 1 | 159.3 | 12.0 | **158.3** | 0.13 | 0.92 |
+| 2 | 65.1 | 12.6 | **64.4** | 0.15 | 0.69 |
+| 4 | 30.4 | **21.6** | 11.4 | **0.96** | 0.69 |
+| 25 | 32.9 | **18.6** | 17.1 | **0.93** | 0.61 |
+| 27 | 921.7 | 20.0 | **920.5** | 0.02 | 0.58 |
+
+Source: [`results/mu_origin_qwen2.5-7b.json`](experiments/results/mu_origin_qwen2.5-7b.json)
+(RoPE survival ‖μ_post‖/‖μ_pre‖ is 0.78–1.00 everywhere — the mean is not
+averaged away by position rotation.)
+
+**The mean has two sources, and they partition the network by layer.**
+
+1. **The boundary layers are pure bias.** At layers 0–3 and 27, μ_pre *is*
+   `b_k`: at layer 0 the bias norm is 604.7 against a `W_k E[z]` contribution
+   of 10.9 nearly orthogonal to μ; at layer 27 it is 920.5 against 20.0.
+   These are precisely the two layers where the quantizer damage concentrates
+   (0.54 and 0.80 logit correlation, Figure 1) — and precisely the two layers
+   the independent llama.cpp mitigation of §2.6 protects.
+2. **The middle layers are massive activations.** From layer 4 to 26,
+   `cos(W_k E[z], μ) = 0.91–0.96` and `W_k E[z]` outweighs the bias — with 16
+   of 3,584 residual channels (0.45%) carrying ~60–90% of `E[z]`'s energy.
+   This is the massive-activations/attention-sink structure of the prior
+   literature, imaged through the key projection.
+
+**This resolves the apparent tension in §6.8.** Zeroing the bias removed "the
+extreme tail of mean-dominated heads but left the bulk unchanged" — because
+the bias *is* the extreme tail (boundary layers) and the residual-stream mean
+*is* the bulk (middle layers). Both statements were correct; they were about
+different layers. It also sharpens §6.20's lineage argument: Qwen1.5 "carries
+the same QKV bias" *architecturally*, but what matters is bias *magnitude* at
+the boundary layers, which is a property of the training run — measured next.
+
+**Practical corollary.** Centering neutralizes both sources at once, which is
+why it is uniformly sufficient. But the boundary-layer half of the problem
+could equally be fixed at model-conversion time by folding the k_proj bias
+into the cache layout (it is a per-layer constant), at zero runtime cost —
+worth knowing for engines where a running mean is inconvenient.
+
 ---
 
 ## 7. Ablations
@@ -1751,8 +1821,11 @@ relative logit structure that generation depends on.
 21. **The bit-sweep is one model.** §6.16's "centering is worth four bits" is
     measured on Qwen2.5-1.5B alone. The direction is very likely general; the
     specific figure of four bits is not established beyond that model.
-22. **Three models failed to run** (OLMo-2-1B, Granite-3.3-2B, Ministral-8B) from
-    GPU contention. Their absence is not evidence about them either way.
+22. **Resolved.** *(revised 2026-08-18.)* The three GPU-contention casualties
+    of the first campaign all completed on retry: OLMo-2-1B and Granite-3.3-2B
+    are in the atlas, and Ministral-8B measures immune (×1.07 worst,
+    consistent with the independent Mistral-7B observation of §2.6). The one
+    remaining absence is Qwen2.5-32B, documented in §6.14.
 12. **The shared component's origin is only partly explained.** §6.8 shows it is
     not the `k_proj` bias. The residual attribution — `W_k · E[x]`, i.e. the
     residual stream's own persistent mean — is inferred by elimination, not
