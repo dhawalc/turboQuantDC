@@ -1,11 +1,23 @@
-# Diagnosing Catastrophic Low-Bit KV-Cache Quantization Failure in Qwen Models
+# What Determines KV-Cache Quantization Damage: A Diagnosis in Qwen and a Predictive Law
 
 **Author:** Dhawal Chheda
 **Draft date:** 2026-08-17 (revised 2026-08-18)
-**Status:** Working manuscript. Not submitted. Sections 3–6.5 report previously-run
-committed experiments; Sections 6.6–6.9 report new measurements made on 2026-08-18
-that confirm the mechanism's central prediction and refute one follow-on
-hypothesis. Section 7 lists the ablations still outstanding.
+**Status:** Working manuscript. Not submitted.
+
+The paper has two halves, and the second grew out of the first. §§3–6.12
+diagnose a catastrophic low-bit KV-cache failure in Qwen2/Qwen2.5 — mechanism,
+correction, causal test, and its birth and disappearance across five model
+generations. §§6.13–6.22 pursue the question that diagnosis raised: *what
+actually determines how much a compressed KV cache costs?* — establishing that
+the reconstruction metrics the field uses do not predict damage, that our own
+replacement is better but insufficient, and finally that damage is a
+model-specific function of one cheap scalar which can be calibrated without
+running the quantizer at all (§6.22, the paper's strongest result).
+
+Sections 3–6.5 report previously-run committed experiments; §§6.6–6.22 report
+measurements made on 2026-08-18. Section 7 lists the ablations still
+outstanding, and §9 the limitations, including hypotheses this project formed
+and then refuted with its own data.
 **Repository:** https://github.com/dhawalc/turboQuantDC
 
 ---
