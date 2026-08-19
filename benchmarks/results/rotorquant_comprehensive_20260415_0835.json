@@ -1,0 +1,91 @@
+{
+  "Qwen/Qwen2.5-3B-Instruct": {
+    "baseline_ppl": 10.8585,
+    "3": {
+      "IsoQuant-Full": {
+        "family": "rotorquant",
+        "ppl": 48.6037,
+        "ppl_tokens": 2047,
+        "ppl_time": 2.9,
+        "attn_cos": 0.5944,
+        "top1": 0.57,
+        "top5": 0.504,
+        "top10": 0.52,
+        "vec_cos": 0.9258,
+        "spearman": 0.9165,
+        "total_ms_per_1k": 0.19,
+        "throughput_kvec_per_sec": 5254.8
+      },
+      "PlanarQuant": {
+        "family": "rotorquant",
+        "ppl": 92.4335,
+        "ppl_tokens": 2047,
+        "ppl_time": 2.1,
+        "attn_cos": 0.5903,
+        "top1": 0.55,
+        "top5": 0.498,
+        "top10": 0.4985,
+        "vec_cos": 0.9107,
+        "spearman": 0.9212,
+        "total_ms_per_1k": 0.058,
+        "throughput_kvec_per_sec": 17099.9
+      },
+      "PolarQuant-WHT": {
+        "family": "turboquantdc",
+        "ppl": 1885.3772,
+        "ppl_tokens": 2047,
+        "ppl_time": 2.3,
+        "attn_cos": 0.568,
+        "top1": 0.515,
+        "top5": 0.496,
+        "top10": 0.521,
+        "vec_cos": 0.984,
+        "spearman": 0.9876,
+        "total_ms_per_1k": 0.143,
+        "throughput_kvec_per_sec": 6969.1
+      },
+      "Givens+Mean": {
+        "family": "turboquantdc",
+        "ppl": 38.4913,
+        "ppl_tokens": 2047,
+        "ppl_time": 2.1,
+        "attn_cos": 0.6308,
+        "top1": 0.57,
+        "top5": 0.466,
+        "top10": 0.4775,
+        "vec_cos": 0.7585,
+        "spearman": 0.9341,
+        "total_ms_per_1k": 0.071,
+        "throughput_kvec_per_sec": 14109.9
+      },
+      "IsoQuant-Full+Mean": {
+        "family": "hybrid",
+        "ppl": 30.1134,
+        "ppl_tokens": 2047,
+        "ppl_time": 2.2,
+        "attn_cos": 0.6424,
+        "top1": 0.575,
+        "top5": 0.511,
+        "top10": 0.536,
+        "vec_cos": 0.771,
+        "spearman": 0.9056,
+        "total_ms_per_1k": 0.21,
+        "throughput_kvec_per_sec": 4760.1
+      },
+      "PlanarQuant+Mean": {
+        "family": "hybrid",
+        "ppl": 38.3208,
+        "ppl_tokens": 2047,
+        "ppl_time": 2.0,
+        "attn_cos": 0.6308,
+        "top1": 0.57,
+        "top5": 0.466,
+        "top10": 0.4775,
+        "vec_cos": 0.7585,
+        "spearman": 0.9341,
+        "total_ms_per_1k": 0.059,
+        "throughput_kvec_per_sec": 17062.5
+      }
+    }
+  }
+}

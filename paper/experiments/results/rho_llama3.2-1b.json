@@ -1,0 +1,124 @@
+{
+ "model": "/tmp/claude-1000/-home-dhawal-turboQuantDC/0bebcfa0-db7f-400c-8b64-efaab6cc84c0/scratchpad/atlas/llama3.2-1b",
+ "name": "llama3.2-1b",
+ "tokens": 2048,
+ "n_layers": 16,
+ "rho_mean": 1.0599534758366644,
+ "rho_max": 1.529731035232544,
+ "frac_heads_gt1": 0.625,
+ "shared_energy_mean": 0.5227581467479467,
+ "per_layer": [
+  {
+   "layer": 0,
+   "rho_mean": 1.0617793798446655,
+   "rho_max": 1.3572663068771362,
+   "frac_heads_gt1": 0.625,
+   "shared_energy": 0.5340107679367065
+  },
+  {
+   "layer": 1,
+   "rho_mean": 1.020878791809082,
+   "rho_max": 1.388909935951233,
+   "frac_heads_gt1": 0.5,
+   "shared_energy": 0.48737120628356934
+  },
+  {
+   "layer": 2,
+   "rho_mean": 0.9590333104133606,
+   "rho_max": 1.262128472328186,
+   "frac_heads_gt1": 0.375,
+   "shared_energy": 0.4704928994178772
+  },
+  {
+   "layer": 3,
+   "rho_mean": 1.1265591382980347,
+   "rho_max": 1.3107666969299316,
+   "frac_heads_gt1": 0.875,
+   "shared_energy": 0.5542040467262268
+  },
+  {
+   "layer": 4,
+   "rho_mean": 1.0993602275848389,
+   "rho_max": 1.3106013536453247,
+   "frac_heads_gt1": 0.875,
+   "shared_energy": 0.5376988649368286
+  },
+  {
+   "layer": 5,
+   "rho_mean": 1.0424633026123047,
+   "rho_max": 1.529731035232544,
+   "frac_heads_gt1": 0.625,
+   "shared_energy": 0.5099064111709595
+  },
+  {
+   "layer": 6,
+   "rho_mean": 1.0695570707321167,
+   "rho_max": 1.2400153875350952,
+   "frac_heads_gt1": 0.75,
+   "shared_energy": 0.5139747858047485
+  },
+  {
+   "layer": 7,
+   "rho_mean": 1.035063624382019,
+   "rho_max": 1.1931970119476318,
+   "frac_heads_gt1": 0.625,
+   "shared_energy": 0.5103371143341064
+  },
+  {
+   "layer": 8,
+   "rho_mean": 1.0452572107315063,
+   "rho_max": 1.2601118087768555,
+   "frac_heads_gt1": 0.625,
+   "shared_energy": 0.5156936049461365
+  },
+  {
+   "layer": 9,
+   "rho_mean": 1.1717993021011353,
+   "rho_max": 1.3237611055374146,
+   "frac_heads_gt1": 0.875,
+   "shared_energy": 0.5808423757553101
+  },
+  {
+   "layer": 10,
+   "rho_mean": 0.9922581315040588,
+   "rho_max": 1.1797174215316772,
+   "frac_heads_gt1": 0.25,
+   "shared_energy": 0.48905089497566223
+  },
+  {
+   "layer": 11,
+   "rho_mean": 1.1502711772918701,
+   "rho_max": 1.3519134521484375,
+   "frac_heads_gt1": 1.0,
+   "shared_energy": 0.5635183453559875
+  },
+  {
+   "layer": 12,
+   "rho_mean": 1.120252013206482,
+   "rho_max": 1.3131511211395264,
+   "frac_heads_gt1": 0.875,
+   "shared_energy": 0.5506148338317871
+  },
+  {
+   "layer": 13,
+   "rho_mean": 1.010087013244629,
+   "rho_max": 1.281643271446228,
+   "frac_heads_gt1": 0.375,
+   "shared_energy": 0.5127165913581848
+  },
+  {
+   "layer": 14,
+   "rho_mean": 0.9873335361480713,
+   "rho_max": 1.2279891967773438,
+   "frac_heads_gt1": 0.25,
+   "shared_energy": 0.49221915006637573
+  },
+  {
+   "layer": 15,
+   "rho_mean": 1.0673023462295532,
+   "rho_max": 1.396806240081787,
+   "frac_heads_gt1": 0.5,
+   "shared_energy": 0.5414784550666809
+  }
+ ]
+}

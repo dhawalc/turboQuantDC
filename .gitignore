@@ -100,3 +100,7 @@ autoresearch.log
 autoresearch_real.log
 *.backup
 nohup.out
+
+# Cached key tensors from paper/experiments (large, regenerable)
+paper/experiments/*.npz
+paper/experiments/gguf/

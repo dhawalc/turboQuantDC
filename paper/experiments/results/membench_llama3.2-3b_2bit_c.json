@@ -1,0 +1,25 @@
+{
+ "name": "llama3.2-3b",
+ "bits": 2,
+ "center": true,
+ "runs": [
+  {
+   "config": "fp16-KV",
+   "context": 8192,
+   "cache_bytes": 939524096,
+   "repr_bytes": 0,
+   "peak_bytes": 1556807680,
+   "seconds": 0.7072606086730957,
+   "tok_per_s": 11582.717741582072
+  },
+  {
+   "config": "2bit",
+   "context": 8192,
+   "cache_bytes": 2987580960,
+   "repr_bytes": 168878080,
+   "peak_bytes": 3697138176,
+   "seconds": 1.354555368423462,
+   "tok_per_s": 6047.740971662527
+  }
+ ]
+}

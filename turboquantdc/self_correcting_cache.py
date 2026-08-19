@@ -258,7 +258,11 @@ class SelfCorrectingCache:
         if not layer._key_indices or layer._key_codebook is None:
             return 0
 
-        # Concatenate compressed storage to access by position
+        # Concatenate compressed storage to access by position. Indices are
+        # bit-packed along the head dimension, so keep the packed tensors for
+        # write-back and unpack a working copy for the reconstruction maths.
+        from .generation_layers import _unpack_bits
+
         all_k_idx = torch.cat(layer._key_indices, dim=2)
         all_k_norms = torch.cat(layer._key_norms, dim=2)
         all_v_idx = torch.cat(layer._val_indices, dim=2)
@@ -277,18 +281,27 @@ class SelfCorrectingCache:
         v_codebook = layer._val_codebook
         assert d is not None and k_codebook is not None and v_codebook is not None
 
+        k_idx_work = (_unpack_bits(all_k_idx, k_codebook.bits, d)
+                      if all_k_idx.dtype == torch.uint8 else all_k_idx)
+        v_idx_work = (_unpack_bits(all_v_idx, v_codebook.bits, d)
+                      if all_v_idx.dtype == torch.uint8 else all_v_idx)
+        rsigns_work = None
+        if layer.use_residual_quant and layer._key_res_signs:
+            _rs = torch.cat(layer._key_res_signs, dim=2)
+            rsigns_work = (_unpack_bits(_rs, 1, d).float() * 2.0 - 1.0
+                           if _rs.dtype == torch.uint8 else _rs.float())
+            rscales_work = torch.cat(layer._key_res_scales, dim=2)
+
         for pos in valid_positions:
             # Key norm refresh
-            k_idx_slice = all_k_idx[:, :, pos, :]  # [batch, heads, d]
+            k_idx_slice = k_idx_work[:, :, pos, :]  # [batch, heads, d]
             flat_k = k_idx_slice.reshape(-1, d)
             recon_rotated = k_codebook.centroids[flat_k.long()]
 
             # Apply residual correction if available
-            if layer.use_residual_quant and layer._key_res_signs:
-                all_k_rsigns = torch.cat(layer._key_res_signs, dim=2)
-                all_k_rscales = torch.cat(layer._key_res_scales, dim=2)
-                rsigns = all_k_rsigns[:, :, pos, :].reshape(-1, d)
-                rscales = all_k_rscales[:, :, pos].reshape(-1, 1)
+            if rsigns_work is not None:
+                rsigns = rsigns_work[:, :, pos, :].reshape(-1, d)
+                rscales = rscales_work[:, :, pos].reshape(-1, 1)
                 recon_rotated = recon_rotated + rsigns * rscales
 
             # Unrotate
@@ -323,7 +336,7 @@ class SelfCorrectingCache:
             )
 
             # Value norm refresh (same logic, simpler -- no residual)
-            v_idx_slice = all_v_idx[:, :, pos, :]
+            v_idx_slice = v_idx_work[:, :, pos, :]
             flat_v = v_idx_slice.reshape(-1, d)
             v_recon_rotated = v_codebook.centroids[flat_v.long()]
             if layer._rotation_type == "wht":
@@ -348,14 +361,18 @@ class SelfCorrectingCache:
         layer._key_norms = [all_k_norms]
         layer._val_norms = [all_v_norms]
 
+        # Consolidate the means FIRST: expanding them needs the per-chunk token
+        # counts, which are read from _key_indices, so it must happen before
+        # the index chunks are collapsed into one.
+        if layer._key_means:
+            layer._key_means = [layer._all_chunk_means()]
+
         # Also consolidate indices to match (single chunk)
         layer._key_indices = [all_k_idx]
         layer._val_indices = [all_v_idx]
         if layer._key_res_signs:
             layer._key_res_signs = [torch.cat(layer._key_res_signs, dim=2)]
             layer._key_res_scales = [torch.cat(layer._key_res_scales, dim=2)]
-        if layer._key_means:
-            layer._key_means = [torch.cat(layer._key_means, dim=2)]
 
         # Invalidate dequantization cache so next access uses refreshed norms
         layer._dequant_key_cache = None
