@@ -1867,6 +1867,90 @@ from an assumed zero-noise/zero-damage anchor, which is the weakness §6.22's
 resolution finding addresses. The models were chosen to span the damage range,
 not sampled from any population.
 
+### 6.23 Additive per-layer error models fail on diffuse perturbations
+
+*(added 2026-08-19. Re-analysis of the §6.22 dataset; no new measurements.)*
+
+Bit allocators in shipping systems combine per-layer sensitivity **additively**.
+NVIDIA's TensorRT-Model-Optimizer PR #2211 (opened 2026-08-18, with
+vllm-project/vllm#52813 as its consumer) states it "solves a width-weighted
+**additive** recipe under `constraints.kv_effective_bits`" over isolated
+forward-KL per-layer sensitivities; HIGGS's dynamic-programming allocator sums
+layer-wise ℓ₂ error. §6.15 of this paper instead found the **worst** layer
+carries the signal — a max, not a sum.
+
+Those are two endpoints of one family. For a per-layer score-space noise vector
+`n = (n₁ … n_L)` with `n_l = 1 − r_l`:
+
+```
+A_p(n) = ( Σ_l n_l^p )^(1/p)
+```
+
+`p = 1` is exactly the additive assumption; `p → ∞` is exactly the worst-layer
+statistic. So "additive or max?" becomes "what is `p`?", which the data answers.
+We rebuilt the entire §6.22 pipeline once per aggregator — the noise-response
+curve re-fitted with that aggregator on the Gaussian-noise cells, the quantizer
+cells predicted through it — so any difference is attributable to the aggregator
+alone.
+
+| Aggregator | R² (all 96) | R² (damaged, >×1.5) | 90th-pct error | misses at ×5 gate |
+|---|---:|---:|---:|---:|
+| **sum (additive)** | **0.835** | 0.956 | ×1.28 | 0 |
+| mean | 0.835 | 0.956 | ×1.28 | 0 |
+| L² | 0.973 | 0.955 | ×1.18 | 0 |
+| **L³** | **0.973** | 0.955 | **×1.16** | 0 |
+| L⁸ | 0.972 | 0.954 | ×1.19 | 0 |
+| **max (worst layer)** | 0.971 | 0.952 | ×1.19 | 0 |
+
+Source: [`experiments/additivity.py`](experiments/additivity.py),
+[`results/additivity.json`](experiments/results/additivity.json).
+(`sum` and `mean` agree exactly, as they must: they differ by a per-model
+constant that the per-model curve absorbs. That agreement is a check on the
+implementation.)
+
+**Three findings, and the second is the useful one.**
+
+1. **The optimum is neither endpoint.** Accuracy peaks around `p ≈ 2–3` and is
+   flat from there to `max`. Damage is *mostly* set by the worst layers but not
+   purely — a modest amount of accumulation is real. An L² or L³ norm is the
+   better default than either a sum or a hard max.
+
+2. **The additive assumption is safe on average and fails catastrophically in
+   the tail, exactly when the perturbation is diffuse.** Stratifying the 96
+   cells by how concentrated their per-layer noise is (`max/mean` of the noise
+   vector):
+
+   | Stratum | cells | additive worst error | max worst error |
+   |---|---:|---:|---:|
+   | **diffuse** (max/mean < 1.2) | 62 | **×72.6** | ×2.6 |
+   | mixed (1.2–2.0) | 21 | ×1.5 | ×1.4 |
+   | concentrated (> 2.0) | 13 | ×2.1 | ×3.5 |
+
+   Median errors are comparable everywhere (0.0038 vs 0.0047 log₁₀ on the
+   diffuse stratum), so this is a tail failure, not a bias. The single worst
+   case is Qwen2.5-1.5B at 2-bit **centered**: true damage ×1.07, additive
+   predicts **×77.7**, worst-layer predicts ×1.00. Summing 28 individually
+   negligible per-layer noises produces a total the curve reads as catastrophe,
+   while the max correctly reports that no layer is in trouble.
+
+3. **This lands on the correction, not on the failure.** Mean removal is
+   precisely what converts a concentrated perturbation into a diffuse one — that
+   is what §6.9 and Figure 1 show it doing. So the regime where additive
+   aggregation misreads damage by up to ×72 is the regime that centering
+   creates. An additive allocator would over-provision bits for exactly the
+   configurations the correction has already made safe. Split by centering, the
+   additive model's worst error is ×72.6 on centered cells against ×2.1 on
+   uncentered ones.
+
+**Scope, stated precisely.** We compared additive against max **as aggregators
+inside our own prediction pipeline**. We did not re-implement ModelOpt's or
+HIGGS's allocators, and we do not claim to have measured their end-to-end bit
+allocations. The claim is about the assumption they share, evaluated on 96
+measured configurations. Note also that **every aggregator gives zero misses at
+a ×5 catastrophe gate** — additivity does not compromise catastrophe *detection*;
+it compromises damage *magnitude* estimation, which is what bit allocation
+consumes.
+
 ---
 
 ## 7. Ablations
