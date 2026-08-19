@@ -81,8 +81,12 @@ def cells_of(name, xkey=XKEY):
 
 
 def main():
-    names = sorted(p.stem.replace("sensitivity_", "")
-                   for p in RESULTS.glob("sensitivity_*.json"))
+    # Exclude alternative-calibration variants (-round/-sign/-seed43); those
+    # are compared separately by family_test.py and would inflate the model
+    # count here without contributing cells.
+    names = sorted(n for n in (p.stem.replace("sensitivity_", "")
+                               for p in RESULTS.glob("sensitivity_*.json"))
+                   if not any(n.endswith(v) for v in ("-round", "-sign", "-seed43")))
     if not names:
         print("no sensitivity curves yet"); return
 
